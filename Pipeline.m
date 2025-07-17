@@ -2,7 +2,7 @@
 % Created: 2025.3.21
 % Last Modified: 2025.7.5
 clc,clear
-targetSubjects = 45 ;
+targetSubjects = 10 ;
 
 % P7 肌电图噪声巨大
 % P9 部分通道效果较好
@@ -102,6 +102,32 @@ for subjId = targetSubjects
     % downsample SEEG & EMG, select good SEEG channels, process EMG, and detect triggers
     [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo);
 
+    % disp(size(Datacell));
+    
+    if subjId == 10
+
+        Trig_1 = zeros(size(Datacell{count,1},1),1);
+
+        % disp(size(Trig_1));
+
+        Trig_2 = zeros(size(Datacell{count,2},1),1);
+
+        Trig_idx_1 = [27299,36463,45628,54826,64057,73322,82569,91801,101065,110313,119611,128909,138240,147571,156943,166200,175598,185196,194527,203975,213372,222737,232168,241616,251080,260495,269926,279407,288838,298303,307834,317332,326846,336427,345908,355423,365021,374518,384649,394330,403978,413543,423140,432738,442353];
+        
+        Trig_idx_2 = [21896,31034,40215,49446,58694,67942,77173,86404,95669,104933,114231,123512,132793,142058,151372,160720,170068,179416,188797,198162,207509,216891,226272,235653,245184,254598,264196,273644,283059,292523,302004,311569,321050,330614,340112,349610,359174,368689,378503,388034,397632,407230,416827,426409,436190];
+
+        Trig_1(Trig_idx_1,1) = 1;
+
+        Trig_2(Trig_idx_2,1) = 1;
+
+        Datacell{count,1}(:,end) = Trig_1';
+
+        Datacell{count,2}(:,end) = Trig_2';
+
+
+    end
+
+
     % process SEEG (bandpass, notch, re-reference), and modify triggers using EMG
     [processed_cell,Trigger_ind] = preprocess_stage2(config, subjId, Datacell, good_channels, actualFs);
     
@@ -145,6 +171,11 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
         
         % detect triggers 
         trigger_labels = detect_triggers(data(:, subInfo.TrigChn));
+
+        disp(size(data(:, subInfo.UseChn)));
+        disp(size(emgProc));
+        disp(size(emgDiff));
+        disp(size(trigger_labels));
         
         % (seeg x N, emg x 2, emgdiff x 1, feature x 1)
         Datacell{sessionIdx} = [data(:, subInfo.UseChn), emgProc, emgDiff, trigger_labels];   
@@ -225,6 +256,15 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
         for ind = 1:length(trigger)
 
             if ind ~= length(trigger)
+
+                % disp(min(trigger(ind)-3*actualFs:trigger(ind)+6*actualFs));
+                % 
+                % disp(max(trigger(ind)-3*actualFs:trigger(ind)+6*actualFs));
+                if trigger(ind)-3*actualFs <= 0
+
+                    continue;
+
+                end
 
                 emg_cell{1,ind} = emgDiff(trigger(ind)-3*actualFs:trigger(ind)+6*actualFs);
 
@@ -400,7 +440,7 @@ function subjectDB = initialize_database()
         define_subject(21, 'Fs',1000, 'UseChn',[1:19,21:37,46:47,50:129], 'EmgChn',136:137, 'TrigChn',38:42)
         define_subject(35, 'Fs',1000, 'UseChn',[1:19,21:31,40:41,44:57,60:87,90:151],...
                          'EmgChn',88:89, 'TrigChn',32:36)
-        define_subjects(51,'Fs',1000, 'UseChn',[1:19,21:37,54:209], 'EmgChn',210:211, 'TrigChn',[46,47,49])
+        % define_subject(51,'Fs',1000, 'UseChn',[1:19,21:37,54:209], 'EmgChn',210:211, 'TrigChn',[46,47,49])
 
         % Fs=2000
         define_subject(10, 'TrigChn',34:38, 'UseChn',[1:19,21:33,39:60,63:216], 'EmgChn',61:62)
@@ -433,12 +473,12 @@ function subjectDB = initialize_database()
         % define_subject(43, 'UseChn',[1:19,21:37,54:225],
         % 'EmgChn',228:229, 'TrigChn',46:50) ECoG
         define_subject(45, 'UseChn',[1:19,21:37,46:181], 'EmgChn',182:183, 'TrigChn',38:42)
-        define_subject(46, 'UseChn',[1:19,21:37,54:153], 'EmgChn',154:155, 'TrigChn',46:48)
-        define_subject(47, 'UseChn',[1:19,21:37,54:201], 'EmgChn',202:203, 'TrigChn',46:48)
-        define_subject(48, 'UseChn',[1:18,20:30,47:67,80:147,152:161], 'EmgChn',168:169, 'TrigChn',39:41)
-        define_subject(49, 'UseChn',[1:15,17:29,46:181], 'EmgChn',182:183, 'TrigChn',38:40)
-        degine_subject(50, 'UseChn',[1:19,21:37,54:207], 'EmgChn',208:209, 'TrigChn',[46,47,49])
-        
+        % define_subject(46, 'UseChn',[1:19,21:37,54:153], 'EmgChn',154:155, 'TrigChn',46:48)
+        % define_subject(47, 'UseChn',[1:19,21:37,54:201], 'EmgChn',202:203, 'TrigChn',46:48)
+        % define_subject(48, 'UseChn',[1:18,20:30,47:67,80:147,152:161], 'EmgChn',168:169, 'TrigChn',39:41)
+        % define_subject(49, 'UseChn',[1:15,17:29,46:181], 'EmgChn',182:183, 'TrigChn',38:40)
+        % degine_subject(50, 'UseChn',[1:19,21:37,54:207], 'EmgChn',208:209, 'TrigChn',[46,47,49])
+        % 
 
         % Fs=500
         define_subject(11, 'Fs',500, 'UseChn',[1:19,21:35,44:45,48:143,146:151,154:209],...
@@ -559,6 +599,10 @@ end
 function trigger_labels = detect_triggers(triggerData)
 
     % 找到每一个Trigchn的极差，从而判断有效Trigger通道
+
+    figure
+
+    plot((1:length(triggerData)),triggerData);
     trig_range = range(triggerData , 1);
 
     % 聚类分析极差显著较大的TrigChn
@@ -612,6 +656,7 @@ function trigger_labels = detect_triggers(triggerData)
 
         Trig_cell{col} = Use_id;
 
+        % Trig_cell{col} = find(Chn_to_analyze>max((Chn_to_analyze)+min(Chn_to_analyze))/2);
     end
 
     combined = [];
@@ -636,14 +681,21 @@ function trigger_labels = detect_triggers(triggerData)
 
     for i = 2:length(sorted_combined)
         % 计算当前元素与前一个保留元素的差值
-        if (sorted_combined(i) - filtered(end)) >= mean_diff
+        if (sorted_combined(i) - filtered(end)) >= mean_diff/2
             filtered = [filtered, sorted_combined(i)]; % 保留该元素
         end
     end
+    % clear filtered
+    % filtered = find(Difftrig>(max(Difftrig)+min(Difftrig))/2);
+    % disp(size(Difftrig));
+
+    % disp(max(filtered));
 
     trigger_labels = zeros(size(triggerData,1),1);
 
     trigger_labels(filtered) = 1;
+
+    
 
     
 
