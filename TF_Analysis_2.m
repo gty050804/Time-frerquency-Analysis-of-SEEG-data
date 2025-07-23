@@ -1,6 +1,26 @@
 % 效果较好：P8   P9  P20  P12  
-% 效果不好：P16 P13
+% 效果不好：P16  P13
 
+% 电极通道映射
+% Normalization   Okay
+% 图片优化(colormap)，排版   
+% (axes)
+
+% 特征分类：低频成分   
+% Location Identification：休息1s，想象2s；想象1s，执行2s。（挑选有响应的通道）
+% Prediction
+
+
+%% 输入：targetsubjexts 
+%        Gamma_epoch
+%        index_of_...
+%        Trigger_ind_cell
+
+%% 输出：cwt_result_mean  （Chn，gesture）
+
+
+
+% 目前仅支持单P分析
 
 
 con=0;con1=0;
@@ -8,33 +28,17 @@ con=0;con1=0;
 Chn_sel_1 = cell(length(targetSubjects),1);
 
 
-% 1 现在还没改好
-p = input("是否分析所有（若是，请输入1（勿输入1，待完成状态）；若否，请输入0。）：");
+% 1  现在还没改好
+p = input("是否分析所有（若是，请输入1；若否，请输入0。）：");
+
+
 
 
 if p==1
 
-    N = zeros(length(targetSubjects),1,3);  
+    Chn_wanted = 1:size(gamma_epoch_cell{1,1},3);
 
-    for con1 = 1:length(targetSubjects)
-
-        Chn_sel_1{con1,1} = 1:size(Gamma_epoch_cell{con1,1},3);
-
-
-
-        N(con1,1) = size(Gamma_epoch_cell{con1,1},2)+size(Gamma_epoch_cell{con1,2},2);
-
-    end
-
-end
-
-
-
-if p~=1
-
-    Chn_wanted = input("请输入待分析通道：");
-
-    N = zeros(length(targetSubjects),1,3);   
+    Number_of_triggers = zeros(length(targetSubjects),1,3);   
 
     for con1 = 1:length(targetSubjects)
     
@@ -44,13 +48,44 @@ if p~=1
         
             % N(con1,1,gesture) = size(Gamma_epoch_cell{con1,1},2)+size(Gamma_epoch_cell{con1,2},2);
 
-            N(con1,1,1) = length(find(index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(15)))...
+            Number_of_triggers(con1,1,1) = length(find(index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(15)))...
             +length(find(index_of_stimulus_onset_cell{con1,2}<=Trigger_ind_cell{con1,2}(15)));
 
-            N(con1,1,2) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(15)&index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(30)))...
+            Number_of_triggers(con1,1,2) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(15)&index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(30)))...
             +length(find(index_of_stimulus_onset_cell{con1,2}>Trigger_ind_cell{con1,2}(15)&index_of_stimulus_onset_cell{con1,2}<=Trigger_ind_cell{con1,2}(30)));
 
-            N(con1,1,3) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(30)))...
+            Number_of_triggers(con1,1,3) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(30)))...
+            +length(find(index_of_stimulus_onset_cell{con1,2}>Trigger_ind_cell{con1,2}(30)));
+
+
+
+
+    end
+end
+
+
+
+if p~=1
+
+    Chn_wanted = input("请输入待分析通道：");
+
+    Number_of_triggers = zeros(length(targetSubjects),1,3);   
+
+    for con1 = 1:length(targetSubjects)
+    
+            Chn_sel_1{con1,1} = Chn_wanted;  
+
+            
+        
+            % N(con1,1,gesture) = size(Gamma_epoch_cell{con1,1},2)+size(Gamma_epoch_cell{con1,2},2);
+
+            Number_of_triggers(con1,1,1) = length(find(index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(15)))...
+            +length(find(index_of_stimulus_onset_cell{con1,2}<=Trigger_ind_cell{con1,2}(15)));
+
+            Number_of_triggers(con1,1,2) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(15)&index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(30)))...
+            +length(find(index_of_stimulus_onset_cell{con1,2}>Trigger_ind_cell{con1,2}(15)&index_of_stimulus_onset_cell{con1,2}<=Trigger_ind_cell{con1,2}(30)));
+
+            Number_of_triggers(con1,1,3) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(30)))...
             +length(find(index_of_stimulus_onset_cell{con1,2}>Trigger_ind_cell{con1,2}(30)));
 
 
@@ -95,7 +130,11 @@ for subjId = targetSubjects
 
     con = con+1;
 
-    cwt_result_mean = cell(length(Chn_sel_1{con,1}),1,3);
+    cwt_result_mean = cell(length(Chn_sel_1{con,1}),3);
+
+    frequency_record = cell(length(Chn_sel_1{con,1}),3);
+
+    
 
     % N = size(Datacell{1},1);
     % 
@@ -150,6 +189,8 @@ for subjId = targetSubjects
 
                 to_be_analyzed = to_be_analyzed(:,i);
 
+                to_be_analyzed = [to_be_analyzed(2*actualFs+1:end);to_be_analyzed(1:2*actualFs)];
+
                 % 现在的to_be_analyzed已经是一个9s的行向量了。
                 % 长度：9*actualFs
                 % 下面进行点对称延拓（防止小波变换的边界效应）
@@ -166,6 +207,13 @@ for subjId = targetSubjects
 
                [cwt_result,f] = cwt(to_be_analyzed,'morse',actualFs);
 
+               % frequency_record{m,}
+
+
+
+
+
+
                 cwt_result = abs(cwt_result);
 
                 start_point = length(comp1)+1;
@@ -174,42 +222,76 @@ for subjId = targetSubjects
 
                 cwt_result = cwt_result(:,start_point:end_point);
 
-                cwt_result = cwt_result./repmat(median(cwt_result(:,1:3*actualFs),2) ...
+                cwt_result = cwt_result./repmat(median(cwt_result(:,1*actualFs:3*actualFs),2) ...
                     ,1,size(cwt_result,2));
+
+                
 
                 if index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(15)
 
-                    if isempty(cwt_result_mean{m,1,1})
+                    if isempty(cwt_result_mean{m,1})
 
-                    cwt_result_mean{m,1,1} = cwt_result;
+                    cwt_result_mean{m,1} = cwt_result;
 
                     else
                     
-                    cwt_result_mean{m,1,1} = cwt_result_mean{m,1,1}+cwt_result;
+                    cwt_result_mean{m,1} = cwt_result_mean{m,1}+cwt_result;
 
                     end
 
+                    if isempty(frequency_record{m,1})
+
+                    frequency_record{m,1} = f;
+
+                    else
+
+                    frequency_record{m,1} = frequency_record{m,1}+f;
+
+                    end
+
+
+
                 elseif index_of_stimulus_onset(i) > Trigger_ind_cell{con,cons}(15)  && index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(30)
 
-                    if isempty(cwt_result_mean{m,1,2})
+                    if isempty(cwt_result_mean{m,2})
 
-                    cwt_result_mean{m,1,2} = cwt_result;
+                    cwt_result_mean{m,2} = cwt_result;
 
                     else
                     
-                    cwt_result_mean{m,1,2} = cwt_result_mean{m,1,2}+cwt_result;
+                    cwt_result_mean{m,2} = cwt_result_mean{m,2}+cwt_result;
+
+                    end
+
+                    if isempty(frequency_record{m,2})
+
+                    frequency_record{m,2} = f;
+
+                    else
+
+                    frequency_record{m,2} = frequency_record{m,2}+f;
 
                     end
 
                 else
 
-                    if isempty(cwt_result_mean{m,1,3})
+                    if isempty(cwt_result_mean{m,3})
 
-                    cwt_result_mean{m,1,3} = cwt_result;
+                    cwt_result_mean{m,3} = cwt_result;
 
                     else
                     
-                    cwt_result_mean{m,1,3} = cwt_result_mean{m,1,3}+cwt_result;
+                    cwt_result_mean{m,3} = cwt_result_mean{m,3}+cwt_result;
+
+                    end
+
+                    if isempty(frequency_record{m,3})
+
+                    frequency_record{m,3} = f;
+
+                    else
+
+                    frequency_record{m,3} = frequency_record{m,3}+f;
 
                     end
 
@@ -322,22 +404,26 @@ for gesture = 1:3
 
     for Chn = 1:length(Chn_sel)
 
-                cwt_result_mean{Chn,1,gesture} = cwt_result_mean{Chn,1,gesture}/N(con,1,gesture);
+                cwt_result_mean{Chn,gesture} = cwt_result_mean{Chn,gesture}/Number_of_triggers(con1,1,gesture);
 
                 % 创建高斯滤波器
-                sigma = 10; % 高斯核的标准差，可以调整
-                filterSize = [3 3]; % 滤波器大小
+                sigma = 10;          % 高斯核的标准差，可以调整
+                filterSize = [3 3];  % 滤波器大小
                 
                 % 应用高斯滤波
-                cwt_result_mean{Chn,1,gesture} = imgaussfilt(cwt_result_mean{Chn,1,gesture}, sigma, 'FilterSize', filterSize);
-                cwt_result_mean{Chn,1,gesture} = imgaussfilt(cwt_result_mean{Chn,1,gesture}, sigma, 'FilterSize', filterSize);
-
+                cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
+                cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
+                
+                cwt_result_mean{Chn,gesture} = log10(cwt_result_mean{Chn,gesture});
 
                 set(0,'DefaultFigureVisible', 'on');
                 t = t(1:end_point-start_point+1);
 
                 figure;
-                surface(t, f, log10(cwt_result_mean{Chn,1,gesture}), 'EdgeColor', 'none');
+                imagesc(t, f, cwt_result_mean{Chn,gesture});
+                set(gca,"YDir","normal");
+                shading interp
+                colormap("jet");
                 axis tight;
                 view(0, 90);
                 xlabel('Time (s)');
@@ -347,7 +433,7 @@ for gesture = 1:3
                 title(filename);
                 colorbar;
                 % clim([0 prctile(cwt_result,95,'all')]);
-                V = log10(cwt_result_mean{Chn,1,gesture});
+                V = cwt_result_mean{Chn,gesture};
                 % disp(prctile(V(:),95));
                 clim([prctile(V(:),8) prctile(V(:),98)]);
 

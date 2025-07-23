@@ -2,7 +2,7 @@
 % Created: 2025.3.21
 % Last Modified: 2025.7.5
 clc,clear
-targetSubjects = 10 ;
+targetSubjects = 20 ;
 
 % P7 肌电图噪声巨大
 % P9 部分通道效果较好
@@ -12,7 +12,7 @@ targetSubjects = 10 ;
 
 
 % P2 3 4 5数据在文件中没有出现，并且SessionNum出现一些不同，此处忽略。
-% 因此默认所有P的SessionNum都是1：2。
+% 因此默认所有P的SessionNum都是1:2。
 
 % emg分析时，若emg_trig（最后一列）和trigger（倒数第二列）的相同行差值小于3*actualFs，
 % 则说明在想想运动的过程中手臂出现了运动，对于这部分Trigger需要予以剔除。
@@ -96,9 +96,6 @@ for subjId = targetSubjects
 
     sessionNum = numel(subInfo.Session_num);
 
-    
-
-
     % downsample SEEG & EMG, select good SEEG channels, process EMG, and detect triggers
     [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo);
 
@@ -172,10 +169,10 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
         % detect triggers 
         trigger_labels = detect_triggers(data(:, subInfo.TrigChn));
 
-        disp(size(data(:, subInfo.UseChn)));
-        disp(size(emgProc));
-        disp(size(emgDiff));
-        disp(size(trigger_labels));
+        % disp(size(data(:, subInfo.UseChn)));
+        % disp(size(emgProc));
+        % disp(size(emgDiff));
+        % disp(size(trigger_labels));
         
         % (seeg x N, emg x 2, emgdiff x 1, feature x 1)
         Datacell{sessionIdx} = [data(:, subInfo.UseChn), emgProc, emgDiff, trigger_labels];   
@@ -506,6 +503,7 @@ function subjectDB = initialize_database()
             CHANNEL_RULES.(field)(s.(field));
         end
     end
+
     function S = merge_struct(default, specific)
         S = default;
         fields = fieldnames(specific);
@@ -513,6 +511,7 @@ function subjectDB = initialize_database()
             S.(fields{i}) = specific.(fields{i});
         end
     end
+
 end
 
 function subInfo = get_subject_info(subjId)
