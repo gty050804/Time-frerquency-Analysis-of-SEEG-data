@@ -1,141 +1,146 @@
+%% 确定哪些通道是我们希望保留的有响应的通道
+
+%% 输入：cwt_result_mean（cell）{Chn,gesture}（频率*时间）   f{Chn,gesture}（频率*时间）
+%% 输出：Chn_var
+
+subInfo = get_subject_info(subjId);
+
+Fs = subInfo.Fs;   actualFs = Fs;
+
+% con=0;
 % 
-con=0;
+% g1 = size(targetSubjects,2);
+% 
+% reactive_locations = cell(g1,2);
+% 
+% non_reactive_locations = cell(g1,2);
+% 
+% r_obs_cell = cell(g1,2);
 
-g1 = size(targetSubjects,2);
+Bandrange = cell(1,3);
 
-reactive_locations = cell(g1,2);
+Bandrange{1,1} = [100,150];
+Bandrange{1,2} = [50,100];
+Bandrange{1,3} = [0,50];
 
-non_reactive_locations = cell(g1,2);
+% Chn_react = cell(3,3); % Dim1：频带范围；Dim2：手势。
 
-r_obs_cell = cell(g1,2);
+check1 = 1*actualFs;   % 休息和想象的交界处
 
-for subjId = targetSubjects
+check2 = 4*actualFs;   % 想象和执行的交界处
 
-    fprintf("Identifying location of P%d \n",subjId);
+check3 = 7*actualFs;   % 想象和休息的交界处
 
-    subInfo = get_subject_info(subjId);
+checkrange = cell(3,2);   % 3个检查点，检查点前后
 
-    Fs = subInfo.Fs;   actualFs = Fs;
+% 固定检验时间
+checkrange{1,1} = 1:check1;
 
-    con = con+1;
+checkrange{1,2} = (check1+1):(check1+2*actualFs);
 
-    sessionNo = subInfo.Session_num;
+checkrange{2,1} = (check2-1*actualFs):check2;
 
-    for cons = sessionNo
+checkrange{2,2} = (check2+1):(check2+2*actualFs);
 
-    gamma_interest = Gamma_epoch_cell{con,cons};
+checkrange{3,1} = (check3-1*actualFs):check3;
+
+checkrange{3,2} = (check3+1):(check3+2*actualFs);
+
+Chn_num = size(cwt_result_mean,1);     % 通道数量
+
+count_channels = zeros(1,Chn_num);
+
+for chn = 1:Chn_num
+
+    fprintf('Processing channel %d/%d \n',chn,Chn_num);
+
+    can_be_adopted = 0;  % default: 该通道无法被纳入
+
+    to_be_analyzed = cell(1,3);   
+
+    for g = 1:3
+
+        to_be_analyzed{1,g} = cwt_result_mean{chn,g};   % 1*3（gesture）的cell   每一个都是一个cwt_result的分析结果
+
+    end
+
+    count = 0;     % 响应达标数量(对每个通道而言，总共有27处可检查，3*3*3）
+
+    % 对每个手势单独分析，再对每个频带单独分析，如果p值检验p<0.05将该通道纳入备选通道
+
+    for g = 1:3  % 3大手势
+
+        fprintf("  Analyzing gesture %d \n",g);
+
+        gesture_analysis = to_be_analyzed{1,g};    % cwt分析结果（矩阵）
+
+        frequency_list = frequency_record{chn,g};
+
+        for f = 1:3  % 3大频带
+
+            fprintf("    Analyzing bandrange %d \n",f);
+
+            frequency = frequency_list(frequency_list>Bandrange{1,f}(1) & frequency_list<Bandrange{1,f}(2));
+
+            frequency_analysis = gesture_analysis(frequency_list>Bandrange{1,f}(1) & frequency_list<Bandrange{1,f}(2),:);
+
+            for t = 1:3  % 3大检验点
+
+                fprintf("      Analyzing checkpoint %d \n",t);
+
+               checkpoint_analysis = mean(frequency_analysis);
+
+               before = checkpoint_analysis(checkrange{t,1});
+
+               after = checkpoint_analysis(checkrange{t,2});
+
+               Number_of_before = length(before);
+
+               Number_of_after = length(after);
+
+               % permutation テスト  （排列测试）
+
+               number_of_repetitions = 1000;
+
+               reverseStr = '';
+
+               labels = [zeros(1,Number_of_before),ones(1,Number_of_after)];
+
+               r_obs = corr([before,after]',labels','Type','Spearman');
+
+               r_pdf = zeros(1,number_of_repetitions);
+               
+               tmp = [before,after];
+
+               for repeat = 1:number_of_repetitions
+
+                   w = tmp(randperm(length(tmp)));
+
+                   r_pdf(repeat) = corr(w',labels','Type','Spearman');
+
+               end
+
+               p_value = 2*normcdf(abs(r_obs), mean(r_pdf,2), std(r_pdf));
+
+               % chiver = chi2gof(r_pdf);
+
+               if p_value<0.05
+
+                   count = count+1;
+
+               end
 
 
 
-    % extent1表示的是Trigger前的时间，extent2表示的是Trigger后的时间。
- 
-    baseline_low_limit = 0.8;
 
-    baseline_high_limit = 1;          % 设置基线时间选取范围（这里即为3s*0.25~0.75=0.75~2.25s的1500ms的时间范围内）
-
-    baseline = gamma_interest(round(extent1*baseline_low_limit*actualFs) ...
-        :round(extent1*baseline_high_limit*actualFs),:,:);
-
-    task_low_limit = 0;
-
-    task_high_limit = 0.1;           % 设置任务相关时间选取范围（这里即为6s*0~0.25=0~1.5s的1500ms的时间范围）
-
-    task = gamma_interest(round(extent1*actualFs+extent2*task_low_limit*actualFs)+1 ...
-        :round(extent1*actualFs+extent2*task_high_limit*actualFs),:,:);
-
-    % 基线与任务相关的样本数量
-
-    N_samples_of_baseline = size(baseline,1);
-
-    N_samples_of_task = size(task,1);
-
-
-    %% permutation テスト  （排列测试）
-
-    number_of_repetitions = 1000;   % 实验重复次数
-
-    reverseStr = '';
-
-    number_of_locations = size(gamma_interest,3);
-
-    r_obs = zeros(1,number_of_locations);
-
-    r_pdf = zeros(number_of_repetitions,number_of_locations);
-
-    p_value = zeros(1,number_of_locations);
-
-    chiver = zeros(1,number_of_locations);
-
-    for chn = 1:number_of_locations
-
-        % displaying message
-        msg = sprintf('\n Processing channel %d/%d', chn, number_of_locations);
-        fprintf([reverseStr, msg]);
-        
-
-        % 检验各有效Trigger的基线和任务相关阶段均值相关性
-        % calculating distributions x (mean of each baseline epoch) and y (mean of each task epoch)
-        x = mean(baseline(:, :, chn), 1); y = mean(task(:, :, chn), 1);
-        N = length(x);
-        M = length(y);
-        labels = [ones(1,N)*-1, ones(1,M)]; % creates a vector of labels (-1 for baseline, +1 for task)
-        r_obs(chn) = corr([x y]', labels', 'type','spearman'); % computes r_obs
-
-        % calculating the distribution
-        % r_pdf（r_pdf：相关性不大的，标签啥的都是瞎配的；r_obs：按理来说有相关性的，标签都是对应的）
-        tmp = [x y];
-        for i = 1:number_of_repetitions
-            
-            w = tmp(randperm(size(tmp, 2))); % permutating the means of baseline and task epochs
-            r_pdf(i, chn) = corr(w', labels', 'type','spearman'); % computing correlation coefficient (i.e., one sample of the distribution r_pdf)
-            
+            end
         end
-
-        p_value(chn) = 2*normcdf(-abs(r_obs(chn)), mean(r_pdf(:, chn), 1), std(r_pdf(:, chn), 0, 1));
-        chiver(chn) = chi2gof(r_pdf(:,chn)); % reture value=0 means the data match the normality, otherwise, doesn't match the normality.
-
     end
 
-    % 已知信息：r_obs： 目标相关性
-    %          r_pdf： 随机测试相关性
-    %          p_value：p值检验（p越小，相关程度越强）
-    %          chiver：随机测试正态分布检验
+    count_channels(chn) = count;
 
-    %% selecting locations with p-values smaller than 0.05 after Bonferroni-correcting for the number of tests (i.e., number of locations)
-    % To do Bonferroni correction, we divide 0.05 (significance level) by
-    % the number of locations.
-    % reactive_locations = find(p_value < 0.05); 
-    % reactive_locations = find(p_value < 0.05/number_of_locations);
-    [~,reactive_locations_1] = min(p_value);
-
-    %% plots r_pdf and r_obs for one reactive location and one non-reactive location
-
-    figure
-    histogram(r_pdf(:, reactive_locations_1)),
-    hold on
-    x1 = abs(r_obs(reactive_locations_1));
-    y1 = get(gca,'ylim');
-    plot([x1 x1],y1, 'r')
-    title('Distribution of correlation coefficients observed by chance (r pdf, in blue) versus actual observed coefficient (r obs, red line) for a reactive location')
+      
     
-    
-    % non_reactive_locations = setdiff(1:number_of_locations, reactive_locations); % determining non-reactive locations
-    [~,non_reactive_locations_1] = max(p_value);
-
-
-    figure
-    histogram(r_pdf(:, non_reactive_locations_1)),
-    hold on
-    x1 = abs(r_obs(non_reactive_locations_1));
-    y1 = get(gca,'ylim');
-    plot([x1 x1],y1, 'r')
-    title('Distribution of correlation coefficients observed by chance (r pdf, in blue) versus actual observed coefficient (r obs, red line) for a non-reactive location')
-
-    reactive_locations{con,cons} = reactive_locations_1;
-    non_reactive_locations{con,cons} = non_reactive_locations_1;
-    r_obs_cell{con,cons} = r_obs;
-    end
-
 
 end
 
@@ -148,6 +153,165 @@ end
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% 
+% for subjId = targetSubjects
+% 
+%     fprintf("Identifying location of P%d \n",subjId);
+% 
+%     subInfo = get_subject_info(subjId);
+% 
+%     Fs = subInfo.Fs;   actualFs = Fs;
+% 
+%     con = con+1;
+% 
+%     sessionNo = subInfo.Session_num;
+% 
+% 
+% 
+%     gamma_interest = Gamma_epoch_cell{con,cons};
+% 
+% 
+% 
+%     % extent1表示的是Trigger前的时间，extent2表示的是Trigger后的时间。
+% 
+%     baseline_low_limit = 0.8;
+% 
+%     baseline_high_limit = 1;          % 设置基线时间选取范围（这里即为3s*0.25~0.75=0.75~2.25s的1500ms的时间范围内）
+% 
+%     baseline = gamma_interest(round(extent1*baseline_low_limit*actualFs) ...
+%         :round(extent1*baseline_high_limit*actualFs),:,:);
+% 
+%     task_low_limit = 0;
+% 
+%     task_high_limit = 0.1;           % 设置任务相关时间选取范围（这里即为6s*0~0.25=0~1.5s的1500ms的时间范围）
+% 
+%     task = gamma_interest(round(extent1*actualFs+extent2*task_low_limit*actualFs)+1 ...
+%         :round(extent1*actualFs+extent2*task_high_limit*actualFs),:,:);
+% 
+%     % 基线与任务相关的样本数量
+% 
+%     N_samples_of_baseline = size(baseline,1);
+% 
+%     N_samples_of_task = size(task,1);
+% 
+% 
+%     %% permutation テスト  （排列测试）
+% 
+%     number_of_repetitions = 1000;   % 实验重复次数
+% 
+%     reverseStr = '';
+% 
+%     number_of_locations = size(gamma_interest,3);
+% 
+%     r_obs = zeros(1,number_of_locations);
+% 
+%     r_pdf = zeros(number_of_repetitions,number_of_locations);
+% 
+%     p_value = zeros(1,number_of_locations);
+% 
+%     chiver = zeros(1,number_of_locations);
+% 
+%     for chn = 1:number_of_locations
+% 
+%         % displaying message
+%         msg = sprintf('\n Processing channel %d/%d', chn, number_of_locations);
+%         fprintf([reverseStr, msg]);
+% 
+% 
+%         % 检验各有效Trigger的基线和任务相关阶段均值相关性
+%         % calculating distributions x (mean of each baseline epoch) and y (mean of each task epoch)
+%         x = mean(baseline(:, :, chn), 1); y = mean(task(:, :, chn), 1);
+%         N = length(x);
+%         M = length(y);
+%         labels = [ones(1,N)*-1, ones(1,M)]; % creates a vector of labels (-1 for baseline, +1 for task)
+%         r_obs(chn) = corr([x y]', labels', 'type','spearman'); % computes r_obs
+% 
+%         % calculating the distribution
+%         % r_pdf（r_pdf：相关性不大的，标签啥的都是瞎配的；r_obs：按理来说有相关性的，标签都是对应的）
+%         tmp = [x y];
+%         for i = 1:number_of_repetitions
+% 
+%             w = tmp(randperm(size(tmp, 2))); % permutating the means of baseline and task epochs
+%             r_pdf(i, chn) = corr(w', labels', 'type','spearman'); % computing correlation coefficient (i.e., one sample of the distribution r_pdf)
+% 
+%         end
+% 
+%         p_value(chn) = 2*normcdf(-abs(r_obs(chn)), mean(r_pdf(:, chn), 1), std(r_pdf(:, chn), 0, 1));
+%         chiver(chn) = chi2gof(r_pdf(:,chn)); % reture value=0 means the data match the normality, otherwise, doesn't match the normality.
+% 
+%     end
+% 
+%     % 已知信息：r_obs： 目标相关性
+%     %          r_pdf： 随机测试相关性
+%     %          p_value：p值检验（p越小，相关程度越强）
+%     %          chiver：随机测试正态分布检验
+% 
+%     %% selecting locations with p-values smaller than 0.05 after Bonferroni-correcting for the number of tests (i.e., number of locations)
+%     % To do Bonferroni correction, we divide 0.05 (significance level) by
+%     % the number of locations.
+%     % reactive_locations = find(p_value < 0.05); 
+%     % reactive_locations = find(p_value < 0.05/number_of_locations);
+%     [~,reactive_locations_1] = min(p_value);
+% 
+%     %% plots r_pdf and r_obs for one reactive location and one non-reactive location
+% 
+%     figure
+%     histogram(r_pdf(:, reactive_locations_1)),
+%     hold on
+%     x1 = abs(r_obs(reactive_locations_1));
+%     y1 = get(gca,'ylim');
+%     plot([x1 x1],y1, 'r')
+%     title('Distribution of correlation coefficients observed by chance (r pdf, in blue) versus actual observed coefficient (r obs, red line) for a reactive location')
+% 
+% 
+%     % non_reactive_locations = setdiff(1:number_of_locations, reactive_locations); % determining non-reactive locations
+%     [~,non_reactive_locations_1] = max(p_value);
+% 
+% 
+%     figure
+%     histogram(r_pdf(:, non_reactive_locations_1)),
+%     hold on
+%     x1 = abs(r_obs(non_reactive_locations_1));
+%     y1 = get(gca,'ylim');
+%     plot([x1 x1],y1, 'r')
+%     title('Distribution of correlation coefficients observed by chance (r pdf, in blue) versus actual observed coefficient (r obs, red line) for a non-reactive location')
+% 
+%     reactive_locations{con,cons} = reactive_locations_1;
+%     non_reactive_locations{con,cons} = non_reactive_locations_1;
+%     r_obs_cell{con,cons} = r_obs;
+% 
+% 
+% 
+% end
+% 
+% 
+% 
+% 
+% 
+% 
+% 
+% 
+% 
+% 
 
 
 
