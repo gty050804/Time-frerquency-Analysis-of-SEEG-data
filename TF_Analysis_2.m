@@ -416,7 +416,7 @@ for gesture = 1:3
                 
                 cwt_result_mean{Chn,gesture} = log10(cwt_result_mean{Chn,gesture});
 
-                set(0,'DefaultFigureVisible', 'on');
+                set(0,'DefaultFigureVisible', 'off');
                 t = t(1:end_point-start_point+1);
 
                 figure;

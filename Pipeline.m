@@ -1,8 +1,26 @@
 % Copyright (c) 2025 Shanghai Jiao Tong University. All rights reserved.
 % Created: 2025.3.21
 % Last Modified: 2025.7.5
+
+% A_M:
+% 目前5通道可用P：7 8 9 10 12 13 19(需要改名字）20 21 22 29 30 31 36 45 
+% 目前5通道不可用P：14 15 34 
+% 3通道P：42 44 46 47 48 49 50 51
+% 未知P：6 23 38(ECog)
+
+% V_M:
+% 目前5通道可用P：11
+% 目前5通道不可用P：
+% 3通道P：
+% 未知P：6 43(ECog)
+
+
+
+
+
 clc,clear
-targetSubjects = 20 ;
+targetSubjects = 46;
+AV = 1;   % 实验选项
 
 % P7 肌电图噪声巨大
 % P9 部分通道效果较好
@@ -97,32 +115,34 @@ for subjId = targetSubjects
     sessionNum = numel(subInfo.Session_num);
 
     % downsample SEEG & EMG, select good SEEG channels, process EMG, and detect triggers
-    [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo);
+    [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo,AV);
 
     % disp(size(Datacell));
+
+    % 由于P10出现上升沿检测鲁棒性低的问题，此处采用手动上升沿检测。
     
-    if subjId == 10
-
-        Trig_1 = zeros(size(Datacell{count,1},1),1);
-
-        % disp(size(Trig_1));
-
-        Trig_2 = zeros(size(Datacell{count,2},1),1);
-
-        Trig_idx_1 = [27299,36463,45628,54826,64057,73322,82569,91801,101065,110313,119611,128909,138240,147571,156943,166200,175598,185196,194527,203975,213372,222737,232168,241616,251080,260495,269926,279407,288838,298303,307834,317332,326846,336427,345908,355423,365021,374518,384649,394330,403978,413543,423140,432738,442353];
-        
-        Trig_idx_2 = [21896,31034,40215,49446,58694,67942,77173,86404,95669,104933,114231,123512,132793,142058,151372,160720,170068,179416,188797,198162,207509,216891,226272,235653,245184,254598,264196,273644,283059,292523,302004,311569,321050,330614,340112,349610,359174,368689,378503,388034,397632,407230,416827,426409,436190];
-
-        Trig_1(Trig_idx_1,1) = 1;
-
-        Trig_2(Trig_idx_2,1) = 1;
-
-        Datacell{count,1}(:,end) = Trig_1';
-
-        Datacell{count,2}(:,end) = Trig_2';
-
-
-    end
+    % if subjId == 10
+    % 
+    %     Trig_1 = zeros(size(Datacell{count,1},1),1);
+    % 
+    %     % disp(size(Trig_1));
+    % 
+    %     Trig_2 = zeros(size(Datacell{count,2},1),1);
+    % 
+    %     Trig_idx_1 = [27299,36463,45628,54826,64057,73322,82569,91801,101065,110313,119611,128909,138240,147571,156943,166200,175598,185196,194527,203975,213372,222737,232168,241616,251080,260495,269926,279407,288838,298303,307834,317332,326846,336427,345908,355423,365021,374518,384649,394330,403978,413543,423140,432738,442353];
+    % 
+    %     Trig_idx_2 = [21896,31034,40215,49446,58694,67942,77173,86404,95669,104933,114231,123512,132793,142058,151372,160720,170068,179416,188797,198162,207509,216891,226272,235653,245184,254598,264196,273644,283059,292523,302004,311569,321050,330614,340112,349610,359174,368689,378503,388034,397632,407230,416827,426409,436190];
+    % 
+    %     Trig_1(Trig_idx_1,1) = 1;
+    % 
+    %     Trig_2(Trig_idx_2,1) = 1;
+    % 
+    %     Datacell{count,1}(:,end) = Trig_1';
+    % 
+    %     Datacell{count,2}(:,end) = Trig_2';
+    % 
+    % 
+    % end
 
 
     % process SEEG (bandpass, notch, re-reference), and modify triggers using EMG
@@ -139,7 +159,7 @@ end
 
 
 %% 
-function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo)
+function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo,AV)
     fprintf('\n-- Stage 1 --');
     
     Fs = subInfo.Fs;
@@ -150,6 +170,7 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
     for sessionIdx = 1:sessionNum
         % load session data
         fprintf(' Session %d/%d', sessionIdx, sessionNum);
+
         dataFile = fullfile(config.raw_dir, sprintf('P%d', subjId), '1_Raw_Data_Transfer', ...
             sprintf('P%d_A_M_%d_Raw.mat', subjId, subInfo.Session_num(sessionIdx)));
         if ~exist(dataFile, 'file')
@@ -167,7 +188,7 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
         [emgProc, emgDiff] = process_emg(data(:, subInfo.EmgChn), actualFs);
         
         % detect triggers 
-        trigger_labels = detect_triggers(data(:, subInfo.TrigChn));
+        trigger_labels = detect_triggers(data(:, subInfo.TrigChn),actualFs, subjId,sessionIdx,AV);
 
         % disp(size(data(:, subInfo.UseChn)));
         % disp(size(emgProc));
@@ -275,7 +296,19 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
             emg_cell{1,ind} = emg_cell{1,ind}/20;
 
-            plot((1:length(emg_cell{1,ind}))/actualFs,emg_cell{1,ind}+(ceil(ind/15)-0.5+0.5*(-1)^sessionIdx)*15+ind,'k');
+            to_be_transformed = emg_cell{1,ind}+(ceil(ind/15)-0.5+0.5*(-1)^sessionIdx)*15+ind;
+
+            len = round(length(to_be_transformed)*2/9);
+
+            shifted = to_be_transformed(1:len);
+
+            main = to_be_transformed(len+1:end);
+
+            merge = [main;shifted];
+
+            set(0,'DefaultFigureVisible', 'on');
+
+            plot((1:length(emg_cell{1,ind}))/actualFs,merge,'k');
 
             hold on
 
@@ -283,21 +316,40 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
                 axis([-0.5,9.5,-5,95]);
 
+                hold on
+
             end
 
-            
-
-
-            
-
-
-
-
-
-
-
-
         end
+
+
+        x_loc1 = round(length(to_be_transformed)/9)/actualFs;
+
+        x_loc2 = round(length(to_be_transformed)/9*4)/actualFs;
+
+        x_loc3 = round(length(to_be_transformed)/9*7)/actualFs;
+
+        y_min = -5;
+
+        y_max = 95;
+
+        line([x_loc1, x_loc1], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+
+        hold on
+
+        line([x_loc2, x_loc2], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+
+        hold on
+
+        line([x_loc3, x_loc3], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+
+        title("EMG records");
+
+        xlabel("time(s)");
+
+        ylabel("trial");
+
+
 
 
 
@@ -463,12 +515,10 @@ function subjectDB = initialize_database()
         define_subject(34, 'UseChn',[1:15,17:31,43:114], 'EmgChn',117:118, 'TrigChn',35:39)
         define_subject(36, 'UseChn',[1:15,17:25,34:126], 'EmgChn',127:128, 'TrigChn',26:30)
         define_subject(37, 'UseChn',[1:15,17:23,32:73], 'EmgChn',74:75, 'TrigChn',24:28)
-        % define_subject(38, 'UseChn',[1:4,7:19,21:37,46:253],
-        % 'EmgChn',254:255, 'TrigChn',38:42) ECoG
+        % define_subject(38, 'UseChn',[1:4,7:19,21:37,46:253],'EmgChn',254:255, 'TrigChn',38:42) 
         define_subject(39, 'UseChn',[1:19,21:35,44:135], 'EmgChn',138:139, 'TrigChn',36:40)
         define_subject(41, 'UseChn',[1:19,21:37,54:207], 'EmgChn',210:211, 'TrigChn',46:50)
-        % define_subject(43, 'UseChn',[1:19,21:37,54:225],
-        % 'EmgChn',228:229, 'TrigChn',46:50) ECoG
+        define_subject(43, 'UseChn',[1:19,21:37,54:225],'EmgChn',228:229, 'TrigChn',46:50) 
         define_subject(45, 'UseChn',[1:19,21:37,46:181], 'EmgChn',182:183, 'TrigChn',38:42)
         % define_subject(46, 'UseChn',[1:19,21:37,54:153], 'EmgChn',154:155, 'TrigChn',46:48)
         % define_subject(47, 'UseChn',[1:19,21:37,54:201], 'EmgChn',202:203, 'TrigChn',46:48)
@@ -595,7 +645,7 @@ end
 % end
 
 
-function trigger_labels = detect_triggers(triggerData)
+function trigger_labels = detect_triggers(triggerData,actualFs,subjId,sessionIdx,AV)
 
     % 找到每一个Trigchn的极差，从而判断有效Trigger通道
 
@@ -677,18 +727,178 @@ function trigger_labels = detect_triggers(triggerData)
     mean_diff = mean_diff / div;
 
     filtered = sorted_combined(1); 
+    
+    i = 1;
+    % while true
+    % 
+    %     i = i+1;
+    %     % 计算当前元素与前一个保留元素的差值
+    %     if (sorted_combined(i) - filtered(end)) >= mean_diff  && (sorted_combined(i)-filtered(end)) < actualFs*11.5
+    %         filtered = [filtered, sorted_combined(i)]; % 保留该元素
+    % 
+    %     elseif (sorted_combined(i)-filtered(end)) > 11.5*actualFs
+    %         filtered = [filtered, round((sorted_combined(i)+filtered(end))/2)];
+    %         i = i-1;
+    % 
+    %     end
+    % 
+    %     if i==length(sorted_combined)
+    %         break;
+    %     end
+    % 
+    % end
 
-    for i = 2:length(sorted_combined)
+
+    while true
+
+        i = i+1;
         % 计算当前元素与前一个保留元素的差值
-        if (sorted_combined(i) - filtered(end)) >= mean_diff/2
+        if (sorted_combined(i) - filtered(end)) >= mean_diff  
             filtered = [filtered, sorted_combined(i)]; % 保留该元素
         end
+
+        % elseif (sorted_combined(i)-filtered(end)) > 11.5*actualFs
+        %     filtered = [filtered, round((sorted_combined(i)+filtered(end))/2)];
+        %     i = i-1;
+        % 
+        % end
+
+        if i==length(sorted_combined)
+            break;
+        end
+
     end
+
+
+    % while length(filtered)<45
+    % 
+    % 
+    %     clear filtered
+    %     i = 1;
+    %     filtered = sorted_combined(1); 
+    %     while true
+    % 
+    %     i = i+1;
+    %     % 计算当前元素与前一个保留元素的差值
+    %     if  (sorted_combined(i)-filtered(end)) < actualFs*13
+    %         filtered = [filtered, sorted_combined(i)]; % 保留该元素
+    % 
+    %     elseif (sorted_combined(i)-filtered(end)) > 13*actualFs  && (sorted_combined(i)-filtered(end))<22*actualFs
+    %         filtered = [filtered, round((sorted_combined(i)+filtered(end))/2)];
+    %         i = i-1;
+    % 
+    %     elseif (sorted_combined(i)-filtered(end)) > 22*actualFs
+    %         filtered = [filtered, round(2*filtered(end)/3+sorted_combined(i)),round(filtered(end)/3+sorted_combined(i)*2/3)];
+    %         i = i-1;
+    % 
+    % 
+    % 
+    % 
+    %     end
+    % 
+    %     if i==length(sorted_combined)
+    %         break;
+    %     end
+    % 
+    %     end
+    % 
+    % 
+    % 
+    % end
+    % 
+
+    
+
+
+
+
+
+
+
+
     % clear filtered
     % filtered = find(Difftrig>(max(Difftrig)+min(Difftrig))/2);
     % disp(size(Difftrig));
 
     % disp(max(filtered));
+
+    
+
+    filtered_new = filtered(1);
+
+    if subjId == 13 && sessionIdx == 1
+
+        filtered_new = [];
+
+        filtered_new(1,1) = 21154;
+
+    elseif subjId == 13 && sessionIdx ==2
+
+        filtered_new = [];
+
+        filtered_new(1,1) = 24443;
+
+    elseif subjId == 19 && sessionIdx ==1
+
+        filtered_new = [];
+
+        filtered_new(1,1) = 33564;
+
+    elseif subjId == 19 && sessionIdx ==2
+
+        filtered_new = [];
+
+        filtered_new(1,1) = 17995;
+
+    elseif subjId == 29 && sessionIdx ==1
+
+        filtered_new = [];
+
+        filtered_new(1,1) = 21641;
+
+    elseif subjId == 29 && sessionIdx ==2
+
+        filtered_new = [];
+
+        filtered_new(1,1) = 26746;
+
+
+    end
+
+    for i = 1:length(filtered)
+
+        if filtered(i) - filtered_new(end) > mean_diff && filtered(i) - filtered_new(end) < 12*actualFs
+
+            filtered_new = [filtered_new;filtered(i)];
+
+        elseif filtered(i) -filtered_new(end) > 16*actualFs && filtered(i) - filtered_new(end) < 20*actualFs
+
+            filtered_new = [filtered_new;round((filtered_new(end)+filtered(i))/2);filtered(i)];
+
+        elseif filtered(i) - filtered_new(end) >25*actualFs 
+
+            filtered_new = [filtered_new;round(filtered_new(end)*2/3+filtered(i)/3);round(filtered_new(end)/3+filtered(i)*2/3);filtered(i)];
+
+
+        end
+
+    end
+
+
+
+
+    % filte
+
+
+
+
+
+   clear filtered
+
+   filtered = filtered_new;
+
+
+    disp(length(filtered));
 
     trigger_labels = zeros(size(triggerData,1),1);
 
@@ -988,5 +1198,13 @@ end
 
 %% Test Area（测试结束记得注释）
 
-D = Datacell{1}(:,end);
-tr = find(D > 0);
+
+
+% D = Datacell{1}(:,end);
+% tr = find(D > 0);
+
+
+% standard_1 = [39605,48803,58017,67248,76496,85777,95058,104306,113588,122885,132217,141514,150829,160143,169525,178972,188304,197618,206983,216330,225728,235143,244557,254005,263453,272934,282415,291880,301344,310809,320290,329754,339252,348833,358348,367879,377410,386908,396489,406053,415668,425699,435263,444844,454492]';
+% standard_2 = [14809,23973,33154,42369,51584,60848,70129,79377,88658,97939,107237,116552,125966,135247,144579,153910,163241,172622,182087,191484,200832,210197,219595,229009,238424,247871,257303,266734,276182,285679,295277,304775,314256,323771,333318,342866,352364,361962,371509,381141,390722,400286,409884,419465,429080]';
+% Z_1 = mean(abs(Trigger_ind_cell{1,1} - standard_1))/actualFs;
+% Z_2 = mean(abs(Trigger_ind_cell{1,2} - standard_2))/actualFs;
