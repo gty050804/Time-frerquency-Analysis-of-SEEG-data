@@ -25,8 +25,8 @@ index_of_stimulus_onset_cell = cell(length(targetSubjects),sessionNum);
 %% Constrct gamma_epoch
 
 % sel_Chn = 20;0
-extent1 = 3;     % 决定Trigger前多长的时间（单位：s）
-extent2 = 6;     % 决定Trigger后多长的时间（单位：s）
+extent1 = 1;     % 决定Trigger前多长的时间（单位：s）
+extent2 = 8;     % 决定Trigger后多长的时间（单位：s）
 
 
 for subjId = targetSubjects

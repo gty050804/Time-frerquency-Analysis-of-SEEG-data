@@ -1,216 +1,374 @@
-% 目前，运行出的gamma_epoch中包含部分Trigger（约占总数的5%）附近0.2s（由参数extent决定）的seeg数据决定，
-% 第一维度为时间，第二维度为Trial，第三维度为Chn。
-% 测试是否有显著响应的模块得到保留，可以更改平均值的倍数调整阈值设定。
+%% 确定哪些通道是我们希望保留的有响应的通道
 
-% SessionNumber不具备鲁棒性，由于本实验每组实验次数均为2因此具备鲁棒性。
+%% 输入：cwt_result_mean（cell）{Chn,gesture}（频率*时间）   f{Chn,gesture}（频率*时间）  subjId  
+%% 输出：Chn_var
 
-B=0;count=0;con=0;clear gamma_epoch
-
-% 矩阵还未搭建好，完成了Trigger的分割，可以判断部分通道的响应情况。
-
-% Selected_Chn：所选通道的响应情况
-
-% 将Gamma_epoch的有效时间放置在每个刺激开始前的2s到开始后的2s，取决于extent
-
-g1 = size(targetSubjects,2);   
-
-sessionNum = 2;
-
-Gamma_epoch_cell = cell(g1,sessionNum);   % 创建一个包含g1*2个3维矩阵的Cell，每个三维矩阵代表一个P&Session
-
-index_of_stimulus_onset_cell = cell(length(targetSubjects),sessionNum);
+subInfo = get_subject_info(subjId);
 
 
 
-%% Constrct gamma_epoch
-
-% sel_Chn = 20;0
-extent1 = 1;     % 决定Trigger前多长的时间（单位：s）
-extent2 = 8;     % 决定Trigger后多长的时间（单位：s）
-
-
-for subjId = targetSubjects
-
-    % con代表了第几个P
-
-    count = 0; con = con+1;
-
-    fprintf("Constructing gamma-epoch of P %d \n", subjId);
-
-    subInfo = get_subject_info(subjId);
-
-    % Fs = subInfo.Fs;   actualFs = Fs;
-
-    sessionNo = subInfo.Session_num;
-
-    for cons = sessionNo
-
-        clear gamma_epoch
-        
-    
-        fprintf("Constructing gamma-epoch of Session %d \n", cons);
-    
-        N = size(Subjectcell{con,cons},1);   % 当前采样点个数
-    
-        datacell = Subjectcell{con,cons};    % 当前预处理后的待研究矩阵
-        
-        Trig = datacell(:, end);
-        
-        index_of_stimulus_onset = find(Trig > 0);
-
-        index_of_stimulus_onset_cell{con,cons} = index_of_stimulus_onset;
-    
-        % selected_Chn = datacell(:,sel_Chn);
-    
-        % seegDiff_smooth = smooth(abs(selected_Chn), 0.025*actualFs);
-    
-        g2 = size(datacell,2)-4;     % 有效通道数
-    
-        g3 = size(index_of_stimulus_onset,1);   % Trigger所代表的刺激数
-    
-        g4 = (extent1+extent2) * actualFs;               % 特定时间内的采样点数，4=2+2
-    
-        % gamma_epoch = zeros(g4 , g3 , g2);      % 维度1：g2->有效通道   g3->刺激试次   g4->刺激前后的一段时间
-    
-        for chn = 1:g2
-    
-            
-    
-            fprintf("Channel %d/%d is being processed.\n",chn,g2);
-    
-    
-    
-            selected_Chn = datacell(:,chn);
-    
-            seegDiff_smooth = smooth(abs(selected_Chn), 0.025*actualFs);
-    
-            for trial = 1:g3  % the segment number (i th)
-    
-                    count = count + 1;
-    
-                    
-        
-                        % start_idx = index_of_stimulus_onset(trial);
-                        % 
-                        % end_idx = min(start_idx + 5*actualFs, length(selected_Chn));
-                        % 
-                        % seegSegment = selected_Chn(start_idx:end_idx); % 5s-long EMG data segment after the trigger signal
-                        % 
-                        % % detect event
-                        % alarm = envelop_hilbert_v2(seegSegment, round(0.025*actualFs), 1, round(0.05*actualFs), 0);
-                        % 
-                        % alarm_indices = find(alarm == 1);
-                        % 
-                        % if ~isempty(alarm_indices)
-                        % 
-                        %     robustIndex = start_idx + alarm_indices(1) - round((0.025*actualFs - 1)/2);
-                        % 
-                        %     robustIndex = min(robustIndex, length(selected_Chn));
-                        % 
-                        %     robustIndex = max(robustIndex, 1); 
-                        % 
-                        % else
-                        % 
-                        %     robustIndex = start_idx;
-                        % 
-                        % end
-                        % 
-                        % % make the comparison of envelop_hilbert trigger and EMG mean value
-                        % % trigger. pick the one comes first.
-                        % seg_end = min(start_idx + 5*actualFs - 1, length(seegDiff_smooth));
-                        % 
-                        % seegSegment = seegDiff_smooth(start_idx:seg_end); % 5s-long smoothed EMG data segment after the trigger signal
-                        % 
-                        % meanval = mean(seegSegment);
-                        % 
-                        % t_start = start_idx + 0.25*actualFs;
-                        % 
-                        % t_end = min(start_idx + 4.5*actualFs - 1, length(seegDiff_smooth));
-                        % 
-                        % t = t_start:t_end; % 0.25s-4.5s in the segment
-                        % 
-                        % % 大于1.5倍平均值，说明存在部分trial（trigger>0的t）是有反应的
-                        % valid_idx = find(seegDiff_smooth(t) >= 1.5*meanval, 1);
-                        % 
-                        % if ~isempty(valid_idx)
-                        % 
-                        %     trigger_pos = min(t(1) - 1 + valid_idx, robustIndex);
-                        % 
-                        % else
-                        % 
-                        %     trigger_pos = robustIndex;
-                        % 
-                        % end
-        
-                        % 开始构造Gamma3维矩阵
-                        
-                        
-                        A = selected_Chn( ...
-                            max(1,index_of_stimulus_onset(trial)-actualFs*extent1): ...
-                            min(index_of_stimulus_onset(trial)+actualFs*extent2-1,length(Trig)));
-        
-                        
-        
-                        if length(A) == g4
-        
-                          gamma_epoch(:, trial, chn) = A;
-        
-                        
-
-
-                        % if index_of_stimulus_onset(trial) <= Trigger_ind(15)
-                        % 
-                        %     gamma_epoch_4(:,trial,chn,1) = A;    
-                        % 
-                        % elseif index_of_stimulus_onset(trial) > Trigger_ind(16) && index_of_stimulus_onset(trial) <= Trigger_ind(30)
-                        % 
-                        %     gamma_epoch_4(:,trial,chn,2) = A;
-                        % 
-                        % else 
-                        % 
-                        %     gamma_epoch_4(:,trial,chn,3) = A;
-                        % 
-                        % end
+number_of_repetitions = 100;
 
 
 
 
-                        end
-                        
-                        
-    
-    
-    
-                        % if (floor(((chn-1)*g3+trial)/g3/g2*100)-B==1)
-                        % 
-                        % count = count+1;
-                        % fprintf("%d percent has completed!", count);
-                        % 
-                        % end
-                        % B = floor(((chn-1)*g3+trial)/g3/g2*100);
-                    
-    
+
+
+
+% con=0;
+% 
+% g1 = size(targetSubjects,2);
+% 
+% reactive_locations = cell(g1,2);
+% 
+% non_reactive_locations = cell(g1,2);
+% 
+% r_obs_cell = cell(g1,2);
+
+Bandrange = cell(1,6);      % 5种频段的波
+% Bandname = ['Delta','Theta','Alpha','Beta','Gamma','High-gamma'];
+Bandrange{1,1} = [0.5,4];    % Delta
+Bandrange{1,2} = [4,8];      % Theta
+Bandrange{1,3} = [8,12];     % Alpha
+Bandrange{1,4} = [12,30];    % Beta
+Bandrange{1,5} = [30,80];    % Gamma
+Bandrange{1,6} = [80,150];   % High-gamma
+
+% Chn_react = cell(3,3); % Dim1：频带范围；Dim2：手势。
+
+% check1 = 1*actualFs;   % 休息和想象的交界处
+% 
+% check2 = 4*actualFs;   % 想象和执行的交界处
+% 
+% check3 = 7*actualFs;   % 想象和休息的交界处
+
+checkrange = cell(1,3);   % 3个检查点，检查点前后
+% checkname = ['Rest & Imag','Rest and Exec'];
+% 固定检验时间
+checkrange{1,1} = 1:1*actualFs;      % 休息时间（0~1s）
+
+checkrange{1,2} = (1*actualFs+1):3*actualFs;    % 运动想象时间（1~3s）
+
+checkrange{1,3} = (3*actualFs+1):5*actualFs;    % 运动执行时间（4~6s）
+
+Chn_num = size(cwt_result_mean,1);     % 通道数量
+
+p_array = zeros(Chn_num,3,6,2);     % dim1:Chn_num  dim2:gesture  dim3:bandrange  dim4:checkpoint
+
+% count_channels = zeros(1,Chn_num);
+
+for chn = 1:Chn_num
+
+    fprintf('Processing channel %d/%d \n',chn,Chn_num);
+
+    can_be_adopted = 0;  % default: 该通道无法被纳入
+
+    to_be_analyzed = cell(1,3);   
+
+    for g = 1:3
+
+        to_be_analyzed{1,g} = cwt_result_mean{chn,g};   % 1*3（gesture）的cell   每一个都是一个cwt_result的分析结果
+
+    end
+     
+    % count = 0;     % 响应达标数量(对每个通道而言，总共有27处可检查，3*3*3）
+
+    % 对每个手势单独分析，再对每个频带单独分析，如果p值检验p<0.05将该通道纳入备选通道
+
+    for g = 1:3  % 3大手势
+
+        fprintf("  Analyzing gesture %d \n",g);
+
+        gesture_analysis = to_be_analyzed{1,g};    % cwt分析结果（矩阵）
+
+        frequency_list = frequency_record{chn,g};
+
+        for f = 1:6  % 6大频带
+
+            fprintf("    Analyzing bandrange %d \n",f);
+
+            frequency = frequency_list(frequency_list>Bandrange{1,f}(1) & frequency_list<Bandrange{1,f}(2));
+
+            frequency_analysis = gesture_analysis(frequency_list>Bandrange{1,f}(1) & frequency_list<Bandrange{1,f}(2),:);
+
+            for t = 1:2  % 2大检验点
+
+               fprintf("      Analyzing checkpoint %d \n",t);
+
+               checkpoint_analysis = mean(frequency_analysis);
+
+               % before = checkpoint_analysis(checkrange{t,1});
+               % 
+               % after = checkpoint_analysis(checkrange{t,2});
+
+               rest = checkpoint_analysis(checkrange{1,1});
+
+               test = checkpoint_analysis(checkrange{1,t});
+
+
+               N_rest = length(rest);
+
+               N_test = length(test);
+
+               % permutation テスト  （排列测试）
+
+               
+
+               reverseStr = '';
+
+               labels = [zeros(1,N_rest),ones(1,N_test)];
+
+               r_obs = corr([rest,test]',labels','Type','Spearman');
+
+               r_pdf = zeros(1,number_of_repetitions);
+               
+               tmp = [rest,test];
+
+               for repeat = 1:number_of_repetitions
+
+                   w = tmp(randperm(length(tmp)));
+
+                   r_pdf(repeat) = corr(w',labels','Type','Spearman');
+
+               end
+
+               % p_value = 1-normcdf(abs(r_obs), mean(r_pdf,2), std(r_pdf));
+
+               % chiver = chi2gof(r_pdf);
+
+               % 计算Z分数
+
+               m_pdf = mean(r_pdf);
+
+               s_pdf = std(r_pdf);
+
+               z = (r_obs-m_pdf)/s_pdf;
+
+               % 计算双尾P值
+
+               p_value = 2*(1-normcdf(abs(z)));
+
+               p_array(chn,g,f,t) = p_value;
+
+               
+
+
+
             end
         end
+    end
+
     
-        Gamma_epoch_cell{con,cons} = gamma_epoch;
+      
     
-        disp(size(gamma_epoch));
+
+end
+
+% usechn_idx = find(count_channels>20);
+
+% usechn = Chn_wanted(usechn_idx);
+
+[~, name] = system('hostname');
+% if strcmp(strip(name), 'ACE1999')
+config.root_dir = fullfile('D:', 'Project','Code_Tutorial','03_Imaginary_Gesture_Coding','Coding_Gestures_Imaginary');
+config.raw_dir = fullfile(config.root_dir, '1_Raw_Data_All');
+config.result_dir = fullfile(config.root_dir, 'preprocessed_data');
+config.EleCTX_dir = fullfile(config.root_dir, '3_Brain_Electrodes');
+safe_mkdir(config.result_dir)
 
 
+EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d',subjId));
+
+if subjId ~= 38 && subjId ~=43
+
+    load(fullfile(EleCTX_dir, 'electrode_raw.mat'), 'elec_Info');
+
+    Sub_Chn = cell2mat(elec_Info.number);
+
+end
+
+
+load(fullfile(EleCTX_dir, 'SignalChanel_Electrode_Registration.mat'), 'CHN');
+if subjId == 38
+    Sub_Chn = [64,64,64,30,20];
+elseif subjId == 43
+    Sub_Chn = [64,64,32,24,24];
+end
+
+
+
+
+
+function safe_mkdir(dirPath)
+    if ~exist(dirPath, 'dir')
+        mkdir(dirPath);
     end
 end
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 % 
-% for con = 1:length(targetSubjects)
+% for subjId = targetSubjects
 % 
-%     con = 
+%     fprintf("Identifying location of P%d \n",subjId);
+% 
+%     subInfo = get_subject_info(subjId);
+% 
+%     Fs = subInfo.Fs;   actualFs = Fs;
+% 
+%     con = con+1;
+% 
+%     sessionNo = subInfo.Session_num;
 % 
 % 
 % 
+%     gamma_interest = Gamma_epoch_cell{con,cons};
 % 
 % 
+% 
+%     % extent1表示的是Trigger前的时间，extent2表示的是Trigger后的时间。
+% 
+%     baseline_low_limit = 0.8;
+% 
+%     baseline_high_limit = 1;          % 设置基线时间选取范围（这里即为3s*0.25~0.75=0.75~2.25s的1500ms的时间范围内）
+% 
+%     baseline = gamma_interest(round(extent1*baseline_low_limit*actualFs) ...
+%         :round(extent1*baseline_high_limit*actualFs),:,:);
+% 
+%     task_low_limit = 0;
+% 
+%     task_high_limit = 0.1;           % 设置任务相关时间选取范围（这里即为6s*0~0.25=0~1.5s的1500ms的时间范围）
+% 
+%     task = gamma_interest(round(extent1*actualFs+extent2*task_low_limit*actualFs)+1 ...
+%         :round(extent1*actualFs+extent2*task_high_limit*actualFs),:,:);
+% 
+%     % 基线与任务相关的样本数量
+% 
+%     N_samples_of_baseline = size(baseline,1);
+% 
+%     N_samples_of_task = size(task,1);
+% 
+% 
+%     %% permutation テスト  （排列测试）
+% 
+%     number_of_repetitions = 1000;   % 实验重复次数
+% 
+%     reverseStr = '';
+% 
+%     number_of_locations = size(gamma_interest,3);
+% 
+%     r_obs = zeros(1,number_of_locations);
+% 
+%     r_pdf = zeros(number_of_repetitions,number_of_locations);
+% 
+%     p_value = zeros(1,number_of_locations);
+% 
+%     chiver = zeros(1,number_of_locations);
+% 
+%     for chn = 1:number_of_locations
+% 
+%         % displaying message
+%         msg = sprintf('\n Processing channel %d/%d', chn, number_of_locations);
+%         fprintf([reverseStr, msg]);
+% 
+% 
+%         % 检验各有效Trigger的基线和任务相关阶段均值相关性
+%         % calculating distributions x (mean of each baseline epoch) and y (mean of each task epoch)
+%         x = mean(baseline(:, :, chn), 1); y = mean(task(:, :, chn), 1);
+%         N = length(x);
+%         M = length(y);
+%         labels = [ones(1,N)*-1, ones(1,M)]; % creates a vector of labels (-1 for baseline, +1 for task)
+%         r_obs(chn) = corr([x y]', labels', 'type','spearman'); % computes r_obs
+% 
+%         % calculating the distribution
+%         % r_pdf（r_pdf：相关性不大的，标签啥的都是瞎配的；r_obs：按理来说有相关性的，标签都是对应的）
+%         tmp = [x y];
+%         for i = 1:number_of_repetitions
+% 
+%             w = tmp(randperm(size(tmp, 2))); % permutating the means of baseline and task epochs
+%             r_pdf(i, chn) = corr(w', labels', 'type','spearman'); % computing correlation coefficient (i.e., one sample of the distribution r_pdf)
+% 
+%         end
+% 
+%         p_value(chn) = 2*normcdf(-abs(r_obs(chn)), mean(r_pdf(:, chn), 1), std(r_pdf(:, chn), 0, 1));
+%         chiver(chn) = chi2gof(r_pdf(:,chn)); % reture value=0 means the data match the normality, otherwise, doesn't match the normality.
+% 
+%     end
+% 
+%     % 已知信息：r_obs： 目标相关性
+%     %          r_pdf： 随机测试相关性
+%     %          p_value：p值检验（p越小，相关程度越强）
+%     %          chiver：随机测试正态分布检验
+% 
+%     %% selecting locations with p-values smaller than 0.05 after Bonferroni-correcting for the number of tests (i.e., number of locations)
+%     % To do Bonferroni correction, we divide 0.05 (significance level) by
+%     % the number of locations.
+%     % reactive_locations = find(p_value < 0.05); 
+%     % reactive_locations = find(p_value < 0.05/number_of_locations);
+%     [~,reactive_locations_1] = min(p_value);
+% 
+%     %% plots r_pdf and r_obs for one reactive location and one non-reactive location
+% 
+%     figure
+%     histogram(r_pdf(:, reactive_locations_1)),
+%     hold on
+%     x1 = abs(r_obs(reactive_locations_1));
+%     y1 = get(gca,'ylim');
+%     plot([x1 x1],y1, 'r')
+%     title('Distribution of correlation coefficients observed by chance (r pdf, in blue) versus actual observed coefficient (r obs, red line) for a reactive location')
+% 
+% 
+%     % non_reactive_locations = setdiff(1:number_of_locations, reactive_locations); % determining non-reactive locations
+%     [~,non_reactive_locations_1] = max(p_value);
+% 
+% 
+%     figure
+%     histogram(r_pdf(:, non_reactive_locations_1)),
+%     hold on
+%     x1 = abs(r_obs(non_reactive_locations_1));
+%     y1 = get(gca,'ylim');
+%     plot([x1 x1],y1, 'r')
+%     title('Distribution of correlation coefficients observed by chance (r pdf, in blue) versus actual observed coefficient (r obs, red line) for a non-reactive location')
+% 
+%     reactive_locations{con,cons} = reactive_locations_1;
+%     non_reactive_locations{con,cons} = non_reactive_locations_1;
+%     r_obs_cell{con,cons} = r_obs;
 % 
 % 
 % 
@@ -225,7 +383,21 @@ end
 % 
 % 
 % 
-% 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 function subInfo = get_subject_info(subjId)
@@ -487,6 +659,14 @@ function alarm = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
     end
 
 end
+
+
+
+
+
+
+
+
 
 
 

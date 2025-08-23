@@ -189,7 +189,7 @@ for subjId = targetSubjects
 
                 to_be_analyzed = to_be_analyzed(:,i);
 
-                to_be_analyzed = [to_be_analyzed(2*actualFs+1:end);to_be_analyzed(1:2*actualFs)];
+                % to_be_analyzed = [to_be_analyzed(2*actualFs+1:end);to_be_analyzed(1:2*actualFs)];
 
                 % 现在的to_be_analyzed已经是一个9s的行向量了。
                 % 长度：9*actualFs
