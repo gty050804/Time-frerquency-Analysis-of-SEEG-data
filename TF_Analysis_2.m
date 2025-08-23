@@ -392,7 +392,7 @@ for gesture = 1:3
                 
                 % 应用高斯滤波
                 cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
-                % cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
+                cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
                 
                 cwt_result_mean{Chn,gesture} = log10(cwt_result_mean{Chn,gesture});
 
@@ -404,19 +404,19 @@ for gesture = 1:3
 
                 % 插值使纵坐标成为等差数列
 
-                starting = ceil(min(f)*10)/10;
-
-                f_interp = starting:step:150;
-
-                cwt_interp = zeros(length(f_interp), size(cwt_result_mean{Chn,gesture}, 2));
-
-                for col = 1:size(cwt_result_mean{Chn,gesture}, 2)
-                    
-                    cwt_interp(:, col) = interp1(f, cwt_result_mean{Chn,gesture}(:, col), f_interp, 'linear', 'extrap');
-
-                end
-
-                cwt_result_mean{Chn,gesture} = cwt_interp;
+                % starting = ceil(min(f)*10)/10;
+                % 
+                % f_interp = starting:step:150;
+                % 
+                % cwt_interp = zeros(length(f_interp), size(cwt_result_mean{Chn,gesture}, 2));
+                % 
+                % for col = 1:size(cwt_result_mean{Chn,gesture}, 2)
+                % 
+                %     cwt_interp(:, col) = interp1(f, cwt_result_mean{Chn,gesture}(:, col), f_interp, 'linear', 'extrap');
+                % 
+                % end
+                % 
+                % cwt_result_mean{Chn,gesture} = cwt_interp;
 
 
 
@@ -428,7 +428,7 @@ for gesture = 1:3
                 t = t(1:end_point-start_point+1);
 
                 figure;
-                imagesc([max(t),min(t)],[max(f),min(f)],cwt_result_mean{Chn,gesture});
+                imagesc(t,f,cwt_result_mean{Chn,gesture});
                 hold on
                 set(gca,"YDir","normal");
                 shading interp

@@ -1,5 +1,4 @@
-% 标准化注释掉了
-% 思考：为什么最大的部分还是在顶上？
+% 目前更正了原代码中出现的错误，再修正后得到类似理论图像，但可视化仍有待改进。
 
 
 
@@ -31,13 +30,13 @@
 
 
 con=0;con1=0;
-step = 0.1;    % 插值精度
+step = 0.5;    % 插值精度
 % Channel to be analyzed
 Chn_sel_1 = cell(length(targetSubjects),1);
 
 
 % 1  现在还没改好
-p = input("是否分析所有（若是，请输入1；若否，请输入0。）：");
+p = input("是否分析所有（若是，请输入1；若否，请i输入0。）：");
 
 
 
@@ -46,7 +45,7 @@ if p==1
 
     Chn_wanted = 1:size(gamma_epoch_cell{1,1},3);
 
-    Number_of_triggers = zeros(length(targetSubjects),1,3);   
+    Number_of_triggers = zeros(length(targetSubjects),3);   
 
     for con1 = 1:length(targetSubjects)
     
@@ -56,13 +55,13 @@ if p==1
         
             % N(con1,1,gesture) = size(Gamma_epoch_cell{con1,1},2)+size(Gamma_epoch_cell{con1,2},2);
 
-            Number_of_triggers(con1,1,1) = length(find(index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(15)))...
+            Number_of_triggers(con1,1) = length(find(index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(15)))...
             +length(find(index_of_stimulus_onset_cell{con1,2}<=Trigger_ind_cell{con1,2}(15)));
 
-            Number_of_triggers(con1,1,2) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(15)&index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(30)))...
+            Number_of_triggers(con1,2) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(15)&index_of_stimulus_onset_cell{con1,1}<=Trigger_ind_cell{con1,1}(30)))...
             +length(find(index_of_stimulus_onset_cell{con1,2}>Trigger_ind_cell{con1,2}(15)&index_of_stimulus_onset_cell{con1,2}<=Trigger_ind_cell{con1,2}(30)));
 
-            Number_of_triggers(con1,1,3) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(30)))...
+            Number_of_triggers(con1,3) = length(find(index_of_stimulus_onset_cell{con1,1}>Trigger_ind_cell{con1,1}(30)))...
             +length(find(index_of_stimulus_onset_cell{con1,2}>Trigger_ind_cell{con1,2}(30)));
 
 
@@ -142,9 +141,6 @@ for subjId = targetSubjects
 
     cwt_result_mean = cell(length(Chn_sel_1{con,1}),3);
 
-    frequency_record = cell(length(Chn_sel_1{con,1}),3);
-
-    
 
     % N = size(Datacell{1},1);
     % 
@@ -205,102 +201,11 @@ for subjId = targetSubjects
                 % 长度：9*actualFs
                 % 下面进行点对称延拓（防止小波变换的边界效应）
 
-                % comp = flip(to_be_analyzed);
-                % 
-                % comp1 = to_be_analyzed(1) - comp;
-                % 
-                % comp2 = to_be_analyzed(end) - comp;
-
-                % to_be_analyzed = [comp1;to_be_analyzed;comp2];
-                % 
-                % t = (1:length(to_be_analyzed))/actualFs;
-                % 
-                % [cwt_result,f] = cwt(to_be_analyzed,'morse',actualFs);
-
-               % frequency_record{m,}
-
-
-
-
-
-
-                % cwt_result = abs(cwt_result);
-                % 
-                % start_point = length(comp1)+1;
-
-                % end_point = length(comp1)+length(comp);
-
-                % cwt_result = cwt_result(:,start_point:end_point);
-
-                % to_be_analyzed = to_be_analyzed(start_point:end_point);
-
-                % cwt_result = cwt_result./repmat(median(cwt_result(:,8*actualFs+1:9*actualFs),2) ...
-                %     ,1,size(cwt_result,2));
-
-                
-
-                if index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(15)
-
-                    if isempty(cwt_result_mean{m,1})
-
-                    cwt_result_mean{m,1} = to_be_analyzed;
-
-                    else
-                    
-                    cwt_result_mean{m,1} = cwt_result_mean{m,1}+to_be_analyzed;
-
-                    end
-
-                elseif index_of_stimulus_onset(i) > Trigger_ind_cell{con,cons}(15)  && index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(30)
-
-                    if isempty(cwt_result_mean{m,2})
-
-                    cwt_result_mean{m,2} = to_be_analyzed;
-
-                    else
-                    
-                    cwt_result_mean{m,2} = cwt_result_mean{m,2}+to_be_analyzed;
-
-                    end
-
-                    % if isempty(frequency_record{m,2})
-                    % 
-                    % frequency_record{m,2} = f;
-                    % 
-                    % else
-                    % 
-                    % frequency_record{m,2} = frequency_record{m,2}+f;
-                    % 
-                    % end
-
-                else
-
-                    if isempty(cwt_result_mean{m,3})
-
-                    cwt_result_mean{m,3} = to_be_analyzed;
-
-                    else
-                    
-                    cwt_result_mean{m,3} = cwt_result_mean{m,3}+to_be_analyzed;
-
-                    end
-                end
-            end
-        end
-    end
-
-
-for gesture = 1:3
-
-    for Chn = 1:length(Chn_sel)
-
-                to_be_analyzed = cwt_result_mean{Chn,gesture}/Number_of_triggers(con1,gesture);
-
                 comp = flip(to_be_analyzed);
 
-                comp1 = to_be_analyzed(1) - comp;
+                comp1 = 2*to_be_analyzed(1) - comp;
 
-                comp2 = to_be_analyzed(end) - comp;
+                comp2 = 2*to_be_analyzed(end) - comp;
 
                 to_be_analyzed = [comp1;to_be_analyzed;comp2];
 
@@ -308,14 +213,127 @@ for gesture = 1:3
 
                 [cwt_result,f] = cwt(to_be_analyzed,'morse',actualFs);
 
-                cwt_result = cwt_result(:,(9*actualFs+1:18*actualFs));
+               % frequency_record{m,}
+
+       
+
+                cwt_result = abs(cwt_result);
+
+                start_point = length(comp1)+1;
+
+                end_point = length(comp1)+length(comp);
+
+                cwt_result = cwt_result(:,start_point:end_point);
+
+                 % 插值处理
+
+                f_result = (1:(150/step))*step;
+
+                cwt_new = zeros(150/step,9*actualFs);    % 统一化后的cwt
+
+                for col = 1:size(cwt_result, 2)
+    
+                     cwt_new(:, col) = interp1(f, cwt_result(:, col), f_result, 'linear', 'extrap');
+
+                end
+
+                cwt_result = cwt_new;
 
                 cwt_result = cwt_result./repmat(median(cwt_result(:,0*actualFs+1:1*actualFs),2) ...
                     ,1,size(cwt_result,2));
 
-                cwt_result_mean{Chn,gesture} = abs(cwt_result);
+                
 
-                % cwt_result_mean{Chn,gesture} = cwt_result_mean{Chn,gesture}/Number_of_triggers(con1,gesture);
+                if index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(15)
+
+                    if isempty(cwt_result_mean{m,1})
+
+                    cwt_result_mean{m,1} = cwt_result;
+
+                    else
+                    
+                    cwt_result_mean{m,1} = cwt_result_mean{m,1}+cwt_result;
+
+                    end
+
+                    
+
+
+
+                elseif index_of_stimulus_onset(i) > Trigger_ind_cell{con,cons}(15)  && index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(30)
+
+                    if isempty(cwt_result_mean{m,2})
+
+                    cwt_result_mean{m,2} = cwt_result;
+
+                    else
+                    
+                    cwt_result_mean{m,2} = cwt_result_mean{m,2}+cwt_result;
+
+                    end
+
+                    
+
+                else
+
+                    if isempty(cwt_result_mean{m,3})
+
+                    cwt_result_mean{m,3} = cwt_result;
+
+                    else
+                    
+                    cwt_result_mean{m,3} = cwt_result_mean{m,3}+cwt_result;
+
+                    end
+
+                    
+
+                end
+
+
+            end
+
+             % cwt_result_mean = cwt_result_mean/N(con,1);
+             % 
+             %    set(0,'DefaultFigureVisible', 'on');
+             %    t = t(1:end_point-start_point+1);
+             % 
+             %    figure;
+             %    surface(t, f, cwt_result_mean, 'EdgeColor', 'none');
+             %    axis tight;
+             %    view(0, 90);
+             %    xlabel('Time (s)');
+             %    ylabel('Frequency (Hz)');
+             %    ylim([0 150]);
+             %    filename = sprintf('P%d Channel%d',subjId,Chn);
+             %    title(filename);
+             %    colorbar;
+             %    clim([0 prctile(cwt_result,99,'all')]);
+             % 
+             % 
+             % 
+             %        outputFolder = 'D:\Project\Code_Tutorial\03_Imaginary_Gesture_Coding\Coding_Gestures_Imaginary\1_Raw_Data_All\Output\TF_Analysis\';
+             %        if Chn == Chn_sel(end)
+             %            fprintf("Saving figure of Channel%d. \n",Chn);
+             %        else
+             %            fprintf("Saving figure of Channel%d... \n",Chn);
+             %        end
+             % 
+
+
+
+
+        end
+
+
+
+    end
+
+for gesture = 1:3
+
+    for Chn = 1:length(Chn_sel)
+
+                cwt_result_mean{Chn,gesture} = cwt_result_mean{Chn,gesture}/Number_of_triggers(con1,gesture);
 
                 % 创建高斯滤波器
                 sigma = 10;          % 高斯核的标准差，可以调整
@@ -323,7 +341,7 @@ for gesture = 1:3
                 
                 % 应用高斯滤波
                 cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
-                cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
+                % cwt_result_mean{Chn,gesture} = imgaussfilt(cwt_result_mean{Chn,gesture}, sigma, 'FilterSize', filterSize);
                 
                 cwt_result_mean{Chn,gesture} = log10(cwt_result_mean{Chn,gesture});
 
@@ -356,10 +374,10 @@ for gesture = 1:3
 
 
                 set(0,'DefaultFigureVisible', 'on');
-                t = t(1:9*actualFs);
+                t = t(1:end_point-start_point+1);
 
                 figure;
-                imagesc(t,f,cwt_result_mean{Chn,gesture});
+                imagesc(t,f_result,cwt_result_mean{Chn,gesture});
                 hold on
                 set(gca,"YDir","normal");
                 shading interp
@@ -369,7 +387,7 @@ for gesture = 1:3
                 view(0, 90);
                 xlabel('Time (s)');
                 ylabel('Frequency (Hz)');
-                % ylim([0 150]);
+                ylim([0 150]);
                 filename = sprintf('P%d Channel %d Gesture%d',subjId,Chn_sel(Chn),gesture);
                 title(filename);
                 colorbar;
