@@ -150,19 +150,17 @@ for chn = 1:Chn_num
 
                p_array(chn,g,f,t) = p_value;
 
-               
-
-
-
             end
         end
     end
-
-    
-      
-    
-
 end
+
+%% 
+
+% p_array构成：dim1:chn   dim2:gesture(3)   dim3:frequency(6)
+% dim4:t(9*actualFs)
+
+
 
 % usechn_idx = find(count_channels>20);
 
@@ -171,10 +169,7 @@ end
 [~, name] = system('hostname');
 % if strcmp(strip(name), 'ACE1999')
 config.root_dir = fullfile('D:', 'Project','Code_Tutorial','03_Imaginary_Gesture_Coding','Coding_Gestures_Imaginary');
-config.raw_dir = fullfile(config.root_dir, '1_Raw_Data_All');
-config.result_dir = fullfile(config.root_dir, 'preprocessed_data');
 config.EleCTX_dir = fullfile(config.root_dir, '3_Brain_Electrodes');
-safe_mkdir(config.result_dir)
 
 
 EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d',subjId));
@@ -187,7 +182,9 @@ if subjId ~= 38 && subjId ~=43
 
 end
 
-
+load(fullfile(EleCTX_dir,'electrodes_Final_Norm.mat'),'FN');
+Chn_info = FN.name;       % Letters & numbers
+name = elec_Info.name;    % Letters ONLY
 load(fullfile(EleCTX_dir, 'SignalChanel_Electrode_Registration.mat'), 'CHN');
 if subjId == 38
     Sub_Chn = [64,64,64,30,20];
@@ -196,14 +193,27 @@ elseif subjId == 43
 end
 
 
+% Now we get the argument Sub_Chn & CHN & Chn_info
+
+% which means:
+% Sub_Chn:  How many channels each part own (following the order of name)
+% CHN:      Show the exact order
+% Chn_info: Show the name of each channel
+
+% Work to do next:
+% 1. Sort the cahnnels into groups. [ ]
+% 2. 
 
 
 
-function safe_mkdir(dirPath)
-    if ~exist(dirPath, 'dir')
-        mkdir(dirPath);
-    end
-end
+
+
+
+% function safe_mkdir(dirPath)
+%     if ~exist(dirPath, 'dir')
+%         mkdir(dirPath);
+%     end
+% end
 
 
 
