@@ -120,7 +120,7 @@ end
 %% Time-Frequency Analysis
 for subjId = targetSubjects
 
-
+    clear cwt_result_mean
     % cwt_result_mean = cell(length(Chn_sel),1);
 
     % for u = 1:length(Chn_sel)
@@ -230,6 +230,8 @@ for subjId = targetSubjects
 
                 f_result = (1:(150/step))*step;
 
+                f_result = flip(f_result);
+
                 cwt_new = zeros(150/step,9*actualFs);    % 统一化后的cwt
 
                 for col = 1:size(cwt_result, 2)
@@ -240,12 +242,16 @@ for subjId = targetSubjects
 
                 cwt_result = cwt_new;
 
-                cwt_result = cwt_result./repmat(median(cwt_result(:,0*actualFs+1:1*actualFs),2) ...
+                norm_standard = [cwt_result(:,0.5*actualFs+1:1*actualFs),cwt_result(:,8*actualFs+1:9*actualFs)];
+
+                cwt_result = cwt_result./repmat(median(cwt_result,2) ...
                     ,1,size(cwt_result,2));
 
                 
 
                 if index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(15)
+
+                    disp("1");
 
                     if isempty(cwt_result_mean{m,1})
 
@@ -262,7 +268,8 @@ for subjId = targetSubjects
 
 
                 elseif index_of_stimulus_onset(i) > Trigger_ind_cell{con,cons}(15)  && index_of_stimulus_onset(i) <= Trigger_ind_cell{con,cons}(30)
-
+                    
+                    disp("2");
                     if isempty(cwt_result_mean{m,2})
 
                     cwt_result_mean{m,2} = cwt_result;
@@ -276,6 +283,8 @@ for subjId = targetSubjects
                     
 
                 else
+                    
+                    disp("3");
 
                     if isempty(cwt_result_mean{m,3})
 
@@ -348,7 +357,7 @@ for gesture = 1:3
 
                 % Log-smoothing
                 
-                core_size = 150;
+                core_size = 300;
                 
                 smooth_window = ones(1, core_size) / core_size;
 
@@ -382,7 +391,7 @@ for gesture = 1:3
                 shading interp
                 colormap("jet");
                 axis tight;
-                axis xy;
+                % axis xy;
                 view(0, 90);
                 xlabel('Time (s)');
                 ylabel('Frequency (Hz)');
