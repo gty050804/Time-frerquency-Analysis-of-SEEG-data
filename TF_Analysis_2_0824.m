@@ -357,7 +357,7 @@ for gesture = 1:3
 
                 % Log-smoothing
                 
-                core_size = 300;
+                core_size = 500;
                 
                 smooth_window = ones(1, core_size) / core_size;
 
@@ -407,7 +407,7 @@ for gesture = 1:3
                 V = cwt_result_mean{Chn,gesture};
 
                 % disp(prctile(V(:),95));
-                clim([prctile(V(:),8) prctile(V(:),98)]);
+                clim([prctile(V(:),10) prctile(V(:),98)]);
 
                 x_loc1 = round(size(cwt_result_mean{Chn,gesture},2)/9)/actualFs;
 

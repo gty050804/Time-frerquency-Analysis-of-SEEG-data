@@ -314,52 +314,109 @@ for g = 1:3
 
     to_be_analyzed = to_be_analyzed(rank,:,:);
 
-    to_be_plotted = to_be_analyzed(:,:,2)./to_be_analyzed(:,:,1);
+    to_be_plotted = to_be_analyzed(:,:,2)./to_be_analyzed(:,:,1);    % 纵坐标为6个频段
 
-    to_be_stored = zeros(150,length(Chn_axis_good));
+    to_be_stored = zeros(150,length(Chn_axis_good));    % 纵坐标为150个频率值
 
     for i = 1:150
 
         if i>Bandrange{1,1}(1) && i<Bandrange{1,1}(2)
 
-            to_be_stored(i,:) = to_be_plotted(:,1);
+            to_be_stored(i,:) = to_be_plotted(:,1)';
 
         elseif i>Bandrange{1,2}(1) && i<Bandrange{1,2}(2)
 
-            to_be_stored(i,:) = to_be_plotted(:,2);
+            to_be_stored(i,:) = to_be_plotted(:,2)';
 
         elseif i>Bandrange{1,3}(1) && i<Bandrange{1,3}(2)
 
-            to_be_stored(i,:) = to_be_plotted(:,3);
+            to_be_stored(i,:) = to_be_plotted(:,3)';
 
         elseif i>Bandrange{1,4}(1) && i<Bandrange{1,4}(2)
 
-            to_be_stored(i,:) = to_be_plotted(:,4);
+            to_be_stored(i,:) = to_be_plotted(:,4)';
 
         elseif i>Bandrange{1,5}(1) && i<Bandrange{1,5}(2)
 
-            to_be_stored(i,:) = to_be_plotted(:,5);
+            to_be_stored(i,:) = to_be_plotted(:,5)';
 
         elseif i>Bandrange{1,6}(1) && i<Bandrange{1,6}(2)
 
-            to_be_stored(i,:) = to_be_plotted(:,6);
+            to_be_stored(i,:) = to_be_plotted(:,6)';
 
         end
 
     end
 
-    p_array_cell{1,g} = to_be_stored;
+    % p_array_cell{1,g} = to_be_stored;
 
     % to_be_stored: 150*Chn_num（画图素材获得，还需卷积一下）
 
+    core_size = 8;
+                
+    smooth_window = ones(core_size,1) / core_size;
 
+    log_power = to_be_stored;
 
+    smoothed_log_power = zeros(size(log_power));
+
+    for chn = 1:size(log_power, 2)
+        smoothed_log_power(:, chn) = conv(log_power(:,chn), smooth_window, 'same');
+    end
+
+    to_be_stored = smoothed_log_power;
+
+    to_be_stored = 20*log10(to_be_stored);
+
+    p_array_cell{1,g} = to_be_stored;
 
 
 end
 
 
+for g = 1:3
 
+    figure;
+    imagesc(1:length(Chn_axis_good),f,p_array_cell{1,g});
+    hold on
+    set(gca,"YDir","normal");
+    % set(gca,'xtick',[],'ytick',[]);
+    shading interp
+    colormap("jet");
+    axis tight;
+    % axis xy;
+    view(0, 90);
+    xlabel('Channel');
+    ylabel('Frequency (Hz)');
+    ylim([0 150]);
+    filename = sprintf('P%d Gesture%d',subjId,g);
+    title(filename);
+    colorbar;
+
+    V = cwt_result_mean{Chn,gesture};
+
+    % disp(prctile(V(:),95));
+    clim([prctile(V(:),2) prctile(V(:),98)]);
+
+    y_min = 0;
+
+    y_max = max(f);
+
+    for k = 1:length(BoundaryN)
+
+        x_loc = BoundaryN(i);
+        
+        line([x_loc, x_loc], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+
+        hold on
+
+
+    end
+
+
+
+
+end
 
 
 
