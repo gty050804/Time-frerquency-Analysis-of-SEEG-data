@@ -16,9 +16,11 @@
 % 1Session: 13 
 
 clc,clear
-targetSubjects = 20;
 
-AV = 2;   % 实验选项
+tic
+targetSubjects = 42;
+
+AV = 1;   % 实验选项
 
 % P7 肌电图噪声巨大
 % P9 部分通道效果较好
@@ -42,6 +44,7 @@ count=0;
     config.raw_dir = fullfile(config.root_dir, '1_Raw_Data_All');
     config.result_dir = fullfile(config.root_dir, 'preprocessed_data');
     config.EleCTX_dir = fullfile(config.root_dir, '3_Brain_Electrodes');
+    config.EMG_dir = fullfile(config.root_dir,"EMG_data");
     safe_mkdir(config.result_dir)
 % else
     % error('Please make a config for yourself')
@@ -107,8 +110,13 @@ for subjId = targetSubjects
 
     count = count+1;
 
-    % Info: subjId, Fs, Session_num, UseChn, EmgChn, TrigChn, Notes
-    subInfo = get_subject_info(subjId);
+
+
+    if ~ismember(subjId,[42,44,46,47,48,49,50,51])
+        subInfo = get_subject_info(subjId);
+    else
+        subInfo = get_subject_info_3(subjId);
+    end
 
     sessionNum = numel(subInfo.Session_num);
 
@@ -174,6 +182,24 @@ for subjId = targetSubjects
     end
 
 end
+
+toc
+
+EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d', subjId));
+load(fullfile(EleCTX_dir, 'electrodes_Final_Norm.mat'), 'elec_Info_Final_wm');
+name = elec_Info_Final_wm.name;
+
+goodname = name(good_channels);
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -323,8 +349,12 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
             end_idx = min(start_idx + 5*actualFs, length(emgDiff));
             emgSegment = emgDiff(start_idx:end_idx); % 5s-long EMG data segment after the trigger signal
 
+            % emgSegment = gpuArray(emgSegment);
+
             % detect event
             alarm = envelop_hilbert_v2(emgSegment, round(0.025*actualFs), 1, round(0.05*actualFs), 0);
+
+            % alarm = gather(alarm);
             alarm_indices = find(alarm == 1);
             
             if ~isempty(alarm_indices)
@@ -397,6 +427,8 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
         Datacell{sessionIdx} = Datacell{sessionIdx}(:,1:end-1);
 
+        Datacell{sessionIdx} = Datacell{sessionIdx}(:,[good_channels,end-2,end-1,end]);
+
 
         
 
@@ -463,27 +495,6 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
         end
 
 
-        % x_loc1 = round(length(to_be_transformed)/9)/actualFs;
-        % 
-        % x_loc2 = round(length(to_be_transformed)/9*4)/actualFs;
-        % 
-        % x_loc3 = round(length(to_be_transformed)/9*7)/actualFs;
-        % 
-        % y_min = -5;
-        % 
-        % y_max = 95;
-        % 
-        % line([x_loc1, x_loc1], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
-        % 
-        % hold on
-        % 
-        % line([x_loc2, x_loc2], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
-        % 
-        % hold on
-        % 
-        % line([x_loc3, x_loc3], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
-        % 
-        % hold on
 
     end
 
@@ -590,45 +601,43 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
      x_loc1 = round(length(to_be_transformed)/9)/actualFs;
 
-        x_loc2 = round(length(to_be_transformed)/9*4)/actualFs;
+     x_loc2 = round(length(to_be_transformed)/9*4)/actualFs;
 
-        x_loc3 = round(length(to_be_transformed)/9*7)/actualFs;
+     x_loc3 = round(length(to_be_transformed)/9*7)/actualFs;
 
-        y_min = -5;
+     y_min = -5;
 
-        y_max = 95;
+     y_max = 95;
 
-        line([x_loc1, x_loc1], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+     line([x_loc1, x_loc1], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
 
-        hold on
+     hold on
 
-        line([x_loc2, x_loc2], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+     line([x_loc2, x_loc2], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
 
-        hold on
+     hold on
 
-        line([x_loc3, x_loc3], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
+     line([x_loc3, x_loc3], [y_min, y_max], 'LineStyle', '--', 'Color', 'r', 'LineWidth', 1);
 
-        hold on
+     hold on
 
+     title("EMG records");
 
+     xlabel("time(s)");
 
+     ylabel("trial");
 
+     save_EMG = config.EMG_dir;
 
-
-        title("EMG records");
-
-        xlabel("time(s)");
-
-        ylabel("trial");
-
-
-
-
-
-
-   
-
+     filename = sprintf("P%d",subjId);
     
+     if ~exist(save_EMG, 'dir')
+         mkdir(save_EMG);
+     end
+
+     saveas(gcf, fullfile(save_EMG, filename),'png');
+
+
     output = Datacell;
 
 
@@ -644,6 +653,61 @@ function safe_mkdir(dirPath)
     if ~exist(dirPath, 'dir')
         mkdir(dirPath);
     end
+end
+
+function subjectDB_3 = initialize_database_3()
+    GLOBAL_DEFAULTS = struct(...
+        'Fs',        2000,...
+        'Session_num', [1,2],...
+        'Notes',     {{}});
+    
+    CHANNEL_RULES = struct(...
+        'UseChn',  @(x)validateattributes(x,{'numeric'},{'row','positive'}),...
+        'EmgChn',  @(x)validateattributes(x,{'numeric'},{'row','numel',2}),...
+        'TrigChn', @(x)validateattributes(x,{'numeric'},{'row','numel',3}));
+
+    subjectDB_3 = [
+        % Fs=1000
+        define_subject(51, 'Fs', 1000, 'TrigChn', [46,47,49], 'UseChn',[1:19,21:37,54:209], 'EmgChn',210:211);
+        
+        define_subject(42, 'TrigChn', 32:34, 'UseChn',[1:15,17:31,40:117], 'EmgChn',124:125);
+        define_subject(44, 'TrigChn', 32:34, 'UseChn',[1:19,21:35,52:183], 'EmgChn',187:188);
+        define_subject(46, 'TrigChn', 46:48, 'UseChn',[1:19,21:37,54:153], 'EmgChn',154:155);
+        define_subject(47, 'TrigChn', 46:48, 'UseChn',[1:19,21:37,54:201], 'EmgChn',202:203);
+        define_subject(48, 'TrigChn', 39:41, 'UseChn',[1:18,20:30,47:67,80:147,152:161], 'EmgChn',168:169);
+        define_subject(49, 'TrigChn', 38:40, 'UseChn',[1:15,17:29,46:181], 'EmgChn',182:183);
+        define_subject(50, 'TrigChn', [46,47,49], 'UseChn',[1:19,21:37,54:207], 'EmgChn',208:209);
+    ];
+
+    [~, idx] = sort([subjectDB_3.subjId]);
+    subjectDB_3 = subjectDB_3(idx);
+
+    function s = define_subject(id, varargin)
+        s = struct('subjId', id);
+        for k = 1:2:length(varargin)
+            s.(varargin{k}) = varargin{k+1};
+        end
+        
+        s = merge_struct(GLOBAL_DEFAULTS, s);
+        
+        fields = fieldnames(CHANNEL_RULES);
+        for f = 1:length(fields)
+            field = fields{f};
+            if ~isfield(s, field) || isempty(s.(field))
+                error('Subject %d ȱ ٱ Ҫ ֶ : %s', id, field);
+            end
+            CHANNEL_RULES.(field)(s.(field));
+        end
+    end
+
+    function S = merge_struct(default, specific)
+        S = default;
+        fields = fieldnames(specific);
+        for i = 1:numel(fields)
+            S.(fields{i}) = specific.(fields{i});
+        end
+    end
+
 end
 
 function subjectDB = initialize_database()
@@ -761,6 +825,19 @@ function subInfo = get_subject_info(subjId)
     subInfo = subjectDB(idx);
 end
 
+function subInfo = get_subject_info_3(subjId)
+    persistent subjectDB_3
+    if isempty(subjectDB_3)
+        subjectDB_3 = initialize_database_3();
+    end
+
+    idx = find([subjectDB_3.subjId] == subjId, 1);
+    if isempty(idx)
+        error('Subject %d not registered', subjId);
+    end
+    subInfo = subjectDB_3(idx);
+end
+
 function [data, actualFs] = handle_resampling(rawData, baseFs, channel)
     persistent b a baseFs_cache
 
@@ -835,9 +912,9 @@ function trigger_labels = detect_triggers(triggerData,actualFs,subjId,sessionIdx
 
     % 找到每一个Trigchn的极差，从而判断有效Trigger通道
 
-    figure
-
-    plot((1:length(triggerData)),triggerData);
+    % figure
+    % 
+    % plot((1:length(triggerData)),triggerData);
     trig_range = range(triggerData , 1);
 
     % 聚类分析极差显著较大的TrigChn
@@ -1012,9 +1089,11 @@ function trigger_labels = detect_triggers(triggerData,actualFs,subjId,sessionIdx
 
         filtered_new(1,1) = 26746;
 
-    
+    elseif subjId == 42 && sessionIdx ==2 && AV ==1
 
- 
+        filtered_new = [];
+
+        filtered_new(1,1) = 34957;
 
     
 
@@ -1082,7 +1161,21 @@ function trigger_labels = detect_triggers(triggerData,actualFs,subjId,sessionIdx
 
         end
 
+    elseif AV == 1
+
+        if subjId == 42 && sessionIdx == 2
+
+            if filtered(end)+2*actualFs<451528
+
+                filtered = [filtered,451528];
+                
+            end
+
+        end
+
     end
+
+    % disp(filtered);
 
 
     for i = 1:length(filtered)
@@ -1099,16 +1192,25 @@ function trigger_labels = detect_triggers(triggerData,actualFs,subjId,sessionIdx
 
             filtered_new = [filtered_new;round(filtered_new(end)*2/3+filtered(i)/3);round(filtered_new(end)/3+filtered(i)*2/3);filtered(i)];
 
-        elseif filtered(i) - filtered_new(end) > 29*actualFs
+        elseif filtered(i) - filtered_new(end) > 33*actualFs && filtered(i) - filtered_new(end) < 39*actualFs
 
             filtered_new = [filtered_new;round(filtered_new(end)*3/4+filtered(i)/4);round(filtered_new(end)/2+filtered(i)/2);round(filtered_new(end)/4+filtered(i)*3/4);filtered(i)];
 
+        elseif filtered(i) - filtered_new(end) > 41*actualFs && filtered(i) - filtered_new(end) < 49*actualFs
+
+            filtered_new = [filtered_new;round(filtered_new(end)*4/5+filtered(i)/5);round(filtered_new(end)*3/5+filtered(i)*2/5);round(filtered_new(end)*2/5+filtered(i)*3/5);round(filtered_new(end)*1/5+filtered(i)*4/5);filtered(i)];
+
+        elseif filtered(i) - filtered_new(end) > 51*actualFs && filtered(i) - filtered_new(end) < 57*actualFs
+
+            filtered_new = [filtered_new;round(filtered_new(end)*5/6+filtered(i)/6);round(filtered_new(end)*4/6+filtered(i)*2/6);round(filtered_new(end)/2+filtered(i)/2);round(filtered_new(end)*2/6+filtered(i)*4/6);round(filtered_new(end)/6+filtered(i)*5/6);filtered(i)];
+
+        elseif filtered(i) - filtered_new(end) > 60*actualFs && filtered(i) - filtered_new(end) < 66*actualFs
+
+            filtered_new = [filtered_new;round(filtered_new(end)*6/7+filtered(i)/7);round(filtered_new(end)*5/7+filtered(i)*2/7);round(filtered_new(end)*4/7+filtered(i)*3/7);round(filtered_new(end)*3/7+filtered(i)*4/7);round(filtered_new(end)*2/7+filtered(i)*5/7);round(filtered_new(end)/7+filtered(i)*6/7);filtered(i)];
 
         end
 
     end
-
- 
 
 
    clear filtered
@@ -1161,7 +1263,7 @@ function Data = cFilterD_EEG(data, Fs, k, OME)
     if k==1 || k==2
         Data = data;
         if length(OME) ~= 2
-            error('The last varable shall be an 1X2 array, check the input!');
+            error('The last variable shall be an 1X2 array, check the input!');
         end
         if k == 2
             % IIRCOMB filter       
