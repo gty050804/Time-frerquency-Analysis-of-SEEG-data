@@ -18,7 +18,7 @@
 clc,clear
 
 tic
-targetSubjects = 42;
+targetSubjects = 19;
 
 AV = 1;   % 实验选项
 
@@ -457,7 +457,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
         % 
         % end
 
-        
+        set(0,'DefaultFigureVisible', 'on');
         
         if sessionIdx == 1
 
