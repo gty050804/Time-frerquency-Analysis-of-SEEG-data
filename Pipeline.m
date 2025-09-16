@@ -1,3 +1,18 @@
+% 0907
+% -[x] Alignment of useful channels
+% -[x] Hilbert process of EMG records
+% -[x] Spline of Hilbert data
+% -[?] Change the threshold of triggering the alarm to reduce trigger
+% eliminition
+% -[ ] Identification of EMG triggers in Execution part(ALL channels)
+% -[ ] Extraction of certain band through bandpass filter -> -[ ] Hilbert ->
+% -[ ] downsampling -> -[ ]Permutation test
+
+
+
+
+
+
 % Copyright (c) 2025 Shanghai Jiao Tong University. All rights reserved.
 % Created: 2025.3.21
 % Last Modified: 2025.7.5
@@ -100,6 +115,8 @@ count=0;
 % targetSubjects = [5, 7:9, 11:12, 14, 16, 18:24, 26, 30:31, 34:37, 39];
 sessionNum = 2;
 
+if_half = 1;
+
 Subjectcell = cell(length(targetSubjects),sessionNum);
 
 Trigger_ind_cell = cell(length(targetSubjects),sessionNum);
@@ -144,36 +161,8 @@ for subjId = targetSubjects
 
 
 
-    % disp(size(Datacell));
-
-    % 由于P10出现上升沿检测鲁棒性低的问题，此处采用手动上升沿检测。
-    
-    % if subjId == 10
-    % 
-    %     Trig_1 = zeros(size(Datacell{count,1},1),1);
-    % 
-    %     % disp(size(Trig_1));
-    % 
-    %     Trig_2 = zeros(size(Datacell{count,2},1),1);
-    % 
-    %     Trig_idx_1 = [27299,36463,45628,54826,64057,73322,82569,91801,101065,110313,119611,128909,138240,147571,156943,166200,175598,185196,194527,203975,213372,222737,232168,241616,251080,260495,269926,279407,288838,298303,307834,317332,326846,336427,345908,355423,365021,374518,384649,394330,403978,413543,423140,432738,442353];
-    % 
-    %     Trig_idx_2 = [21896,31034,40215,49446,58694,67942,77173,86404,95669,104933,114231,123512,132793,142058,151372,160720,170068,179416,188797,198162,207509,216891,226272,235653,245184,254598,264196,273644,283059,292523,302004,311569,321050,330614,340112,349610,359174,368689,378503,388034,397632,407230,416827,426409,436190];
-    % 
-    %     Trig_1(Trig_idx_1,1) = 1;
-    % 
-    %     Trig_2(Trig_idx_2,1) = 1;
-    % 
-    %     Datacell{count,1}(:,end) = Trig_1';
-    % 
-    %     Datacell{count,2}(:,end) = Trig_2';
-    % 
-    % 
-    % end
-
-
     % process SEEG (bandpass, notch, re-reference), and modify triggers using EMG
-    [processed_cell,Trigger_ind] = preprocess_stage2(config, subjId, Datacell, good_channels, actualFs);
+    [processed_cell,Trigger_ind] = preprocess_stage2(config, subjId, Datacell, good_channels, actualFs, if_half);
     
     
     for n = 1:sessionNum
@@ -197,12 +186,6 @@ goodname = name(good_channels);
 
 
 
-
-
-
-
-
-
 %% 
 function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId, subInfo,AV)
     fprintf('\n-- Stage 1 --');
@@ -210,6 +193,7 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
     Fs = subInfo.Fs;
     sessionNum = numel(subInfo.Session_num);
     Datacell = cell(1, sessionNum);
+
     goodChsCache = cell(1, sessionNum);
 
     for sessionIdx = 1:sessionNum
@@ -253,6 +237,27 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
 
         % resampling
         [data, actualFs] = handle_resampling(Data, Fs, [subInfo.UseChn, subInfo.EmgChn]);
+
+        Aligned_UseChn = data(:,subInfo.UseChn);
+
+
+
+        % Aligned_UseChn = data(:,1:end-2);     % 待更序的通道
+        % 
+        EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d',subjId));
+
+        load(fullfile(EleCTX_dir, 'SignalChanel_Electrode_Registration.mat'), 'CHN');
+
+        for k = 1:length(CHN)
+
+            Aligned_UseChn(:,k) = data(:,CHN(k));
+
+        end
+
+        data(:,subInfo.UseChn) = Aligned_UseChn;
+
+        % Align
+
     
         % select good channals
         goodChsCache{sessionIdx} = select_good_channels(data(:, subInfo.UseChn), actualFs, 10);
@@ -275,18 +280,19 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
     good_channels = union(goodChsCache{:});
 end
 
-function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell, good_channels, actualFs)
+function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell, good_channels, actualFs,if_half)
     fprintf('\n-- Stage 2 --\n');
     Trigger_cell_cell = cell(2,1);
     sessionNum = numel(Datacell);
     emg_trig_cell = cell(1,2);
     ranking = zeros(1,90);
     emg_cell = cell(2,45);
+    % hil_cell = cell(2,45);
     for sessionIdx = 1:sessionNum
         fprintf(' Session %d/%d:', sessionIdx, sessionNum);
         sessionData = Datacell{sessionIdx};  % seeg*n + emg*2 + emgdiff + trigger_exe
         trigger_idx = sessionData(:, end);
-        EMG = sessionData(:, end-3:end-2);
+        % EMG = sessionData(:, end-3:end-2);
         SEEG = sessionData(:, 1:end-4);
 
         
@@ -352,7 +358,8 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
             % emgSegment = gpuArray(emgSegment);
 
             % detect event
-            alarm = envelop_hilbert_v2(emgSegment, round(0.025*actualFs), 1, round(0.05*actualFs), 0);
+            [~,alarm] = envelop_hilbert_v2(emgSegment, round(0.025*actualFs), 1, round(0.05*actualFs), 0);
+            % hil_cell{sessionIdx,trial} = env;
 
             % alarm = gather(alarm);
             alarm_indices = find(alarm == 1);
@@ -378,7 +385,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
             t_start = start_idx + 0.25*actualFs;
             t_end = min(start_idx + 4.5*actualFs - 1, length(emgDiff_smooth));
-            t = t_start:t_end; % 0.25s-4.5s in the segment
+            t = t_start:t_end;       % 0.25s-4.5s in the segment
             valid_idx = find(emgDiff_smooth(t) >= 10*abs(meanval), 1);
             if ~isempty(valid_idx)
                 trigger_pos = min(t(1) - 1 + valid_idx, robustIndex);
@@ -389,8 +396,8 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
             EMG_trigger(trigger_pos) = trigger_idx(trigger(trial));
         end
 
-        % (eegdata, 2*EMG, 1*fealabel, 1*EMG_trigger)
-        Datacell{sessionIdx} = [SEEG_referenced, EMG, trigger_idx, EMG_trigger]; 
+        % (eegdata, 1*emgDiff, 1*fealabel, 1*EMG_trigger)
+        Datacell{sessionIdx} = [SEEG_referenced, emgDiff, trigger_idx, EMG_trigger]; 
 
         temp = Datacell{sessionIdx}(:,end-1);
 
@@ -418,44 +425,11 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
         temp(to_be_deleted) = 0;
 
-
-        % emg = find(EMG_trigger>0);
-        % to_be_deleted = find(emg - trigger<3*actualFs);
-        % to_be_deleted = trigger_idx(to_be_deleted);
-        % temp(to_be_deleted) = 0;
         Datacell{sessionIdx}(:,end-1) = temp;
 
-        Datacell{sessionIdx} = Datacell{sessionIdx}(:,1:end-1);
+        Datacell{sessionIdx} = Datacell{sessionIdx}(:,1:end-1);   % seeg*n + 1*emgDiff + trigger_idx
 
-        Datacell{sessionIdx} = Datacell{sessionIdx}(:,[good_channels,end-2,end-1,end]);
-
-
-        
-
-        % ranking = zeros(1,90);
-
-
-
-
-        
-
-        % for k = 1:3
-        % 
-        %     index = [1:15,46:60] + (k-1)*15;
-        % 
-        %     to_be_rank = EMG_trig(index);
-        % 
-        %     [~,~,rank] = unique(to_be_rank);
-        % 
-        %     for j = 1:length(rank)
-        % 
-        %         ranking((ceil(j/15)-1)*45+mod(j,15)) = rank(j);
-        % 
-        %     end
-        % 
-        % 
-        % 
-        % end
+        % Datacell{sessionIdx} = Datacell{sessionIdx}(:,[good_channels,end-2,end-1,end]);
 
         set(0,'DefaultFigureVisible', 'on');
         
@@ -469,9 +443,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
             if ind ~= length(trigger)
 
-                % disp(min(trigger(ind)-3*actualFs:trigger(ind)+6*actualFs));
-                % 
-                % disp(max(trigger(ind)-3*actualFs:trigger(ind)+6*actualFs));
+
                 if trigger(ind)-3*actualFs <= 0
 
                     continue;
@@ -479,6 +451,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
                 end
 
                 emg_cell{sessionIdx,ind} = emgDiff(trigger(ind)-3*actualFs:trigger(ind)+6*actualFs);
+                
 
             else
 
@@ -532,28 +505,12 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
             end
 
-            % for j = 1:length(rank)
-            % 
-            %     disp((ceil(j/15)-1)*45+mod(j,15));
-            % 
-            %     ranking((ceil(j/15)-1)*45+mod(j,15)) = rank(j);
-            % 
-            % end
 
             for j = 1:length(rank)
-
-                % disp(j+(ka-1)*15+(ceil(j/15)-1)*30);
-                % 
-                % disp(rank(j));
 
                 ranking(j+(ka-1)*15+(ceil(j/15)-1)*30) = rank(j);
 
             end
-
-           
-
-            
-
 
      end
 
@@ -564,6 +521,19 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
          to_be_transformed = ranking(j) + (mod(ceil(j/15)-1,3))*30 + ...
                                      emg_cell{ceil(j/45),mod(j-1,45)+1};
 
+         if if_half
+
+             % to_be_transformed(to_be_transformed<ranking(j)+(mod(ceil(j/15)-1,3))*30) = ranking(j) + (mod(ceil(j/15)-1,3))*30;
+             l = to_be_transformed(to_be_transformed<ranking(j)+(mod(ceil(j/15)-1,3))*30); % = (ranking + (mod(ceil(j/15)-1,3))*30)*2 - to_be_transformed; 
+             l = (ranking(j) + (mod(ceil(j/15)-1,3))*30)*2 - l;
+             to_be_transformed(to_be_transformed<ranking(j)+(mod(ceil(j/15)-1,3))*30) = l;
+         end
+
+         % to_be_hiled = ranking(j) + (mod(ceil(j/15)-1,3))*30 + ...
+         %                             hil_cell{ceil(j/45),mod(j-1,45)+1};
+
+         
+         % 这里是用抬高后的数据做的Hilbert变换，可能会对最终env的均值造成影响。
          len = round(length(to_be_transformed)*2/9);
 
          shifted = to_be_transformed(1:len);
@@ -572,38 +542,77 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
          merge = [main;shifted];
 
-         % disp(emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))
+         window_size = 0.2;
+
+         [hil,~] = envelop_hilbert_v2(merge-ranking(j)-(mod(ceil(j/15)-1,3))*30,round(window_size*actualFs), 1, round(0.05*actualFs), 0);
+
+         hil = hil/max(hil)/1.5;
+
+         to_be_hiled = ranking(j) + (mod(ceil(j/15)-1,3))*30 + hil;
+                                     
+
+         compensation = mean(merge(1:1*actualFs)) - mean(to_be_hiled(1:1*actualFs));
+
+         % to_be_hiled = to_be_hiled(window_size*actualFs:end);
+         to_be_hiled = to_be_hiled(1:end-window_size*actualFs+1);
+
+
+         % down_sampling % spline
+
+
+         % csaps 函数平滑化处理效果不佳，去除了很多反应点
+         x = ((1:length(emg_cell{1,ind}))/actualFs)-1;
+
+         step = 50;  % 降采样步幅
+
+         x= x(1:step:end);
+         to_be_hiled_down = to_be_hiled(1:step:end);
          % 
-         % disp(ranking(j)+(mod(ceil(j/15)-1,3))*30)
+         % p = 0.2;   % 平滑指数
+         % 
+         % to_be_hiled_smooth = csaps(x, to_be_hiled_down, p);
+         % 
+         x_fine = ((1:length(emg_cell{1,ind}))/actualFs)-1;
+         % 
+         % to_be_hiled_cont = ppval(to_be_hiled_smooth, x_fine);     % 我们最后用csaps函数对信号加以平滑处理
+         % 
+         % to_be_hiled = to_be_hiled_cont;
 
-         % set(0,'DefaultFigureVisible', 'on');
 
-         plot((1:length(emg_cell{1,ind}))/actualFs,merge,'k');
+         % 三次样条插值法
+
+         to_be_hiled_cont = spline(x,to_be_hiled_down,x_fine);
+
+         to_be_hiled = to_be_hiled_cont;
+
+         plot(((1:length(emg_cell{1,ind}))/actualFs)-1,merge,'k');
 
          hold on
 
-         scatter((emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs+1,ranking(j)+(mod(ceil(j/15)-1,3))*30,5,'red','filled');
+         plot(((1:length(emg_cell{1,ind}))/actualFs)-1,to_be_hiled+compensation,'r');
+
+         hold on
+
+         scatter((emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,5,'red','filled');
          % 
          % hold on
 
          if j == 90
 
-                axis([-0.5,9.5,-5,95]);
+                axis([-1.5,8.5,-5,95]);
 
                 hold on
 
          end
 
 
-
-
      end
 
-     x_loc1 = round(length(to_be_transformed)/9)/actualFs;
+     x_loc1 = round(length(to_be_transformed)/9)/actualFs-1;
 
-     x_loc2 = round(length(to_be_transformed)/9*4)/actualFs;
+     x_loc2 = round(length(to_be_transformed)/9*4)/actualFs-1;
 
-     x_loc3 = round(length(to_be_transformed)/9*7)/actualFs;
+     x_loc3 = round(length(to_be_transformed)/9*7)/actualFs-1;
 
      y_min = -5;
 
@@ -635,10 +644,10 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
          mkdir(save_EMG);
      end
 
-     saveas(gcf, fullfile(save_EMG, filename),'png');
+     % saveas(gcf, fullfile(save_EMG, filename),'png');
 
 
-    output = Datacell;
+     output = Datacell;
 
 
 
@@ -1346,15 +1355,35 @@ end
 
 
 function [Data, CHN] = Laplacian_reRef(config, SEEG, good_channels, subjId)
-    EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d', subjId));
-    load(fullfile(EleCTX_dir, 'electrode_raw.mat'), 'elec_Info');
-    load(fullfile(EleCTX_dir, 'SignalChanel_Electrode_Registration.mat'), 'CHN');
     
+    
+    
+    if subjId == 46
+        Sub_Chn = [64,64,64,30,20];
+
+    elseif subjId == 47
+        Sub_Chn = [64,64,32,24,24];
+
+    elseif subjId == 49
+        Sub_Chn = [64,64,32,24,24];
+
+    elseif subjId == 50
+
+        Sub_Chn = [64,64,32,24,24];
+    
+    else
+        
+        EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d', subjId));
+        load(fullfile(EleCTX_dir, 'electrode_raw.mat'), 'elec_Info');
+        load(fullfile(EleCTX_dir, 'SignalChanel_Electrode_Registration.mat'), 'CHN');
+        Sub_Chn = cell2mat(elec_Info.number);
+
+    end
+
     Data = SEEG;
     good_mask = false(size(CHN));
     good_mask(good_channels) = true;
 
-    Sub_Chn = cell2mat(elec_Info.number);
     elec_number_end = cumsum(Sub_Chn);
     elec_number_begin = [1, elec_number_end(1:end-1) + 1];
     
@@ -1406,7 +1435,7 @@ end
 
 
 
-function alarm = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
+function [hil_result,alarm] = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
     %% function alarm = envelop_hilbert(y,Smooth_window,threshold_style,DURATION,gr)
     %% Inputs ;
     % y = Raw input signal to be analyzed
@@ -1459,7 +1488,7 @@ function alarm = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
     
     %%
     
-    % input handling
+    % input handlingI (default)
     if nargin < 5
         gr = 1;
         if nargin < 4
@@ -1484,9 +1513,11 @@ function alarm = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
     
     %% take the moving average of analytical signal
     %env=movingav(env,70,0);
-    env = conv(env, ones(1,Smooth_window)/Smooth_window);%smooth
+    env = conv(env, ones(1,Smooth_window)/Smooth_window);   % smooth
     env = env(:) - mean(env); % get rid of offset
-    env = env/max(env); %normalize
+    env = env/max(env);     % normalize
+    hil_result = env;
+    
     
     %% threshold the signal
     if threshold_style == 0
@@ -1501,15 +1532,15 @@ function alarm = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
     if threshold_style
         THR_SIG = 4*mean(env);
     end
-    nois = mean(env)*(1/3); % noise level
-    threshold = mean(env); % signal level
+    nois = mean(env)*(1/3);    % noise level
+    threshold = mean(env);     % signal level
     
     thres_buf  = [];
     nois_buf = [];
     THR_buf = zeros(1,length(env));
     
     for i = 1:length(env)-DURATION
-      if env(i:i+DURATION) > THR_SIG 
+      if env(i:i+DURATION) > THR_SIG
           % alarmx(h) = i;
           % alarmy(h) = env(i);
           alarm(i) = max(env);
@@ -1529,7 +1560,7 @@ function alarm = envelop_hilbert_v2(y,Smooth_window,threshold_style,DURATION,gr)
       nois_buf = [nois_buf, nois];
       
       if h > 1
-      THR_SIG = nois + 0.50*(abs(threshold - nois)); %update threshold
+      THR_SIG = nois + 0.50*(abs(threshold - nois));    % update threshold
       end
       THR_buf(i) = THR_SIG;
     end 
