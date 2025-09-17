@@ -285,6 +285,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
     Trigger_cell_cell = cell(2,1);
     sessionNum = numel(Datacell);
     emg_trig_cell = cell(1,2);
+    emg_trig_cell_2 = cell(1,2);
     ranking = zeros(1,90);
     emg_cell = cell(2,45);
     % hil_cell = cell(2,45);
@@ -342,6 +343,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
         % plot((1:length(emgDiff_smooth))/actualFs, emgDiff_smooth');
         EMG_trigger = zeros(size(sessionData,1), 1);
+        EMG_trigger_2 = zeros(size(sessionData,1), 1);
         trigger = find(trigger_idx); % search for the trigger position and label
         Trigger_cell_cell{sessionIdx,1} = trigger;
 
@@ -352,28 +354,47 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
         
         for trial = 1:length(trigger)  % the segment number (i th)
             start_idx = trigger(trial);
+            start_idx_2 = trigger(trial)+3*actualFs;
             end_idx = min(start_idx + 5*actualFs, length(emgDiff));
+            end_idx_2 = min(start_idx_2 + 5*actualFs, length(emgDiff));
             emgSegment = emgDiff(start_idx:end_idx); % 5s-long EMG data segment after the trigger signal
+            emgSegment_2 = emgDiff(start_idx_2:end_idx_2);
 
             % emgSegment = gpuArray(emgSegment);
 
             % detect event
             [~,alarm] = envelop_hilbert_v2(emgSegment, round(0.025*actualFs), 1, round(0.05*actualFs), 0);
             % hil_cell{sessionIdx,trial} = env;
+            [~,alarm_2] = envelop_hilbert_v2_2(emgSegment_2, round(0.025*actualFs), 1, round(0.05*actualFs), 0);
 
             % alarm = gather(alarm);
             alarm_indices = find(alarm == 1);
+
+            alarm_indices_2 = find(alarm_2 == 1);
+
+            % disp(alarm_indices);
             
             if ~isempty(alarm_indices)
 
                 robustIndex = start_idx + alarm_indices(1) - round((0.025*actualFs - 1)/2);
 
+
+                % robustIndex_2中的alarm_indices(2)并不是第二个EMG_trigger开始的时间。
+
+                robustIndex_2 = start_idx_2 + alarm_indices_2(1) - round((0.025*actualFs - 1)/2);
+
                 robustIndex = min(robustIndex, length(emgDiff));
 
                 robustIndex = max(robustIndex, 1); 
+
+                robustIndex_2 = min(robustIndex_2, length(emgDiff));
+
+                robustIndex_2 = max(robustIndex_2, 1); 
                 
             else
                 robustIndex = start_idx;
+
+                robustIndex_2 = start_idx_2;
                 
             end
             
@@ -389,29 +410,37 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
             valid_idx = find(emgDiff_smooth(t) >= 10*abs(meanval), 1);
             if ~isempty(valid_idx)
                 trigger_pos = min(t(1) - 1 + valid_idx, robustIndex);
+                trigger_pos_2 = min(t(1) - 1 + valid_idx, robustIndex_2);
             else
                 trigger_pos = robustIndex;
+                trigger_pos_2 = robustIndex_2;
       
             end
             EMG_trigger(trigger_pos) = trigger_idx(trigger(trial));
+            EMG_trigger_2(trigger_pos_2) =  trigger_idx(trigger(trial));
         end
 
-        % (eegdata, 1*emgDiff, 1*fealabel, 1*EMG_trigger)
         Datacell{sessionIdx} = [SEEG_referenced, emgDiff, trigger_idx, EMG_trigger]; 
 
         temp = Datacell{sessionIdx}(:,end-1);
 
         EMG_trig = find(EMG_trigger>0);
 
-        
-
-        % disp(length(EMG_trig));
-
-
+        EMG_trig_2 = find(EMG_trigger_2>0);
 
         t_diff = EMG_trig - trigger;
 
+        % disp(t_diff);
+
+        t_diff_2 = EMG_trig_2 - trigger;
+
+        % disp(t_diff_2);
+
         emg_trig_cell{1,sessionIdx} = t_diff;
+
+        emg_trig_cell_2{1,sessionIdx} = t_diff_2;
+
+
 
         disp(size(t_diff));
 
@@ -593,7 +622,20 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
          hold on
 
-         scatter((emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,5,'red','filled');
+         if (emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs>3
+
+            scatter((emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'green','filled');
+
+         end
+         if (emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs<3
+
+             % disp("Fucking!");
+
+             scatter((emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'red','filled');
+
+             scatter((emg_trig_cell_2{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'red','filled');
+
+         end
          % 
          % hold on
 
@@ -1530,7 +1572,14 @@ function [hil_result,alarm] = envelop_hilbert_v2(y,Smooth_window,threshold_style
     h=1;
     alarm =zeros(1,length(env));
     if threshold_style
-        THR_SIG = 4*mean(env);
+        % THR_SIG = 4*mean(env);
+        THR_SIG = 2*10^15*abs(mean(env));
+
+        % disp(THR_SIG);
+        % THR_SIG = 0.04*median(env);
+        % THR_SIG = 0.05;
+        % disp("THR_SIG = ");
+        % disp(THR_SIG);
     end
     nois = mean(env)*(1/3);    % noise level
     threshold = mean(env);     % signal level
@@ -1587,6 +1636,166 @@ function [hil_result,alarm] = envelop_hilbert_v2(y,Smooth_window,threshold_style
 
 end
 
+
+
+function [hil_result,alarm] = envelop_hilbert_v2_2(y,Smooth_window,threshold_style,DURATION,gr)
+    %% function alarm = envelop_hilbert(y,Smooth_window,threshold_style,DURATION,gr)
+    %% Inputs ;
+    % y = Raw input signal to be analyzed
+    % Smooth_window :this is the window length used for smoothing your signal
+    % threshold_style : set it 1 to have an adaptive threshold and set it 0
+    % to manually select the threshold from a plot
+    % DURATION : Number of the samples that the signal should stay
+    % gr = make it 1 if you want a plot and 0 when you dont want a plot
+    
+    %%%%%%%
+    % Tuning parameters for the best results;
+    %%%%%%%
+    % 1. DURATION is correlated to your sampling frequency, you can use a multiple
+    % of your sampling frequency e.g. round(0.050*SamplingFrequency)
+    % 2. Smooth_window is correlated to your sampling frequency, you can use a multiple
+    % of your sampling frequency e.g. round(0.0500*SamplingFrequency), this is
+    % the window length used for smoothing your signal
+    
+    
+    
+    
+    %% Outputs ;
+    % alarm : vector resembeling the active parts of the signal
+    %% Method
+    % Calculates the analytical signal with the help of hilbert transfrom,
+    % takes the envelope and smoothes the signal. Finally , with the help of an
+    % adaptive threshold detects the activity of the signal where at least a
+    % minimum number of samples with the length of 
+    % (DURATION) Samples should stay above the threshold). The threshold is a
+    % computation of signal noise and activity level which is updated online.
+    
+    %% Example and Demo
+    % To run demo mode simply execute the following line without any input;
+    % Example 1 :
+    % alarm = envelop_hilbert()
+    % The script generates one artificial signal and analysis that
+    % v = repmat([.1*ones(200,1);ones(100,1)],[10 1]); % generate true variance profile
+    % y = sqrt(v).*randn(size(v));
+    
+    % Example 2 : For real world signals with a certain Sampling frequency
+    % called (Fs) (In this example a smoothing window with length 200 msec,)
+    % alarm = envelop_hilbert(signal,round(0.050*Fs),1,round(0.020*Fs),1)
+    
+    %% Author : Hooman Sedghamiz 
+    % hoose792@student.liu.se
+    %(Hooman.sedghamiz@medel.com)
+    % Copy right April 2013
+    
+    % Edited March 2014
+    
+    %%
+    
+    % input handlingI (default)
+    if nargin < 5
+        gr = 1;
+        if nargin < 4
+            DURATION = 20; % default
+            if nargin < 3
+                threshold_style = 1; % default 1 , means it is done automatic
+                if nargin < 2
+                    Smooth_window = 20; % default for smoothing length
+                    if  nargin < 1
+                        v = repmat([.1*ones(200,1);ones(100,1)],[10 1]); % generate true variance profile
+                        y = sqrt(v).*randn(size(v));
+                    end
+                end
+            end
+        end
+    end
+    
+    %% calculate the analytical signal and get the envelope
+    test=y(:);
+    analytic = hilbert(test);
+    env = abs(analytic);
+    
+    %% take the moving average of analytical signal
+    %env=movingav(env,70,0);
+    env = conv(env, ones(1,Smooth_window)/Smooth_window);   % smooth
+    env = env(:) - mean(env); % get rid of offset
+    env = env/max(env);     % normalize
+    hil_result = env;
+    
+    
+    %% threshold the signal
+    if threshold_style == 0
+        hg=figure;plot(env);title('Select a threshold on the graph')
+        [~, THR_SIG] =ginput(1);
+        close(hg);
+    end
+    %DURATION = 20;
+    
+    h=1;
+    alarm =zeros(1,length(env));
+    if threshold_style
+        % THR_SIG = 4*mean(env);
+        THR_SIG = 4*abs(mean(env));
+
+        % disp(THR_SIG);
+        % THR_SIG = 0.04*median(env);
+        % THR_SIG = 0.05;
+        % disp("THR_SIG = ");
+        % disp(THR_SIG);
+    end
+    nois = mean(env)*(1/3);    % noise level
+    threshold = mean(env);     % signal level
+    
+    thres_buf  = [];
+    nois_buf = [];
+    THR_buf = zeros(1,length(env));
+    
+    for i = 1:length(env)-DURATION
+      if env(i:i+DURATION) > THR_SIG
+          % alarmx(h) = i;
+          % alarmy(h) = env(i);
+          alarm(i) = max(env);
+          threshold = 0.2*mean(env(i:i+DURATION)); % update threshold 10% of the maximum peaks found
+          h = h + 1;
+      else
+          if mean(env(i:i+DURATION)) < THR_SIG
+          nois = mean(env(i:i+DURATION)); %update noise
+          else
+              if ~isempty(nois_buf)
+                  nois = mean(nois_buf);
+              end
+          end
+      end 
+      
+      thres_buf = [thres_buf, threshold];
+      nois_buf = [nois_buf, nois];
+      
+      if h > 1
+      THR_SIG = nois + 0.50*(abs(threshold - nois));    % update threshold
+      end
+      THR_buf(i) = THR_SIG;
+    end 
+    
+    if gr
+    figure,ax(1)=subplot(211);plot(test/max(test)),hold on,plot(alarm/(max(alarm)),'r','LineWidth',2.5),
+    hold on,plot(THR_buf,'--g','LineWidth',2.5);
+    title('Raw Signal and detected Onsets of activity');
+    legend('Raw Signal','Detected Activity in Signal','Adaptive Treshold',...
+        'orientation','horizontal');
+    grid on;axis tight;
+    ax(2)=subplot(212);plot(env);
+    hold on,plot(THR_buf,'--g','LineWidth',2.5),
+    hold on,plot(thres_buf,'--r','LineWidth',2),
+    hold on,plot(nois_buf,'--k','LineWidth',2),
+    title('Smoothed Envelope of the signal(Hilbert Transform)');
+    legend('Smoothed Envelope of the signal(Hilbert Transform)','Adaptive Treshold',...
+        'Activity level','Noise Level','orientation','horizontal');
+    linkaxes(ax,'x');
+    zoom on;
+    axis tight;
+    grid on;
+    end
+
+end
 
 
 
