@@ -1,6 +1,7 @@
 % 目前，运行出的gamma_epoch中包含部分Trigger（约占总数的5%）附近0.2s（由参数extent决定）的seeg数据决定，
 % 第一维度为时间，第二维度为Trial，第三维度为Chn。
 % 测试是否有显著响应的模块得到保留，可以更改平均值的倍数调整阈值设定。
+% 已按照CHN顺序进行排序
 
 % SessionNumber不具备鲁棒性，由于本实验每组实验次数均为2因此具备鲁棒性。
 
@@ -64,7 +65,7 @@ for subjId = targetSubjects
     
         % seegDiff_smooth = smooth(abs(selected_Chn), 0.025*actualFs);
     
-        g2 = size(datacell,2)-3;     % 有效通道数
+        g2 = size(datacell,2)-2;     % 有效通道数
     
         g3 = size(index_of_stimulus_onset,1);   % Trigger所代表的刺激数
     

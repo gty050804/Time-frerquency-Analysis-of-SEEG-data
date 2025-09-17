@@ -2,9 +2,10 @@
 % -[x] Alignment of useful channels
 % -[x] Hilbert process of EMG records
 % -[x] Spline of Hilbert data
-% -[?] Change the threshold of triggering the alarm to reduce trigger
+% -[x] Change the threshold of triggering the alarm to reduce trigger
 % eliminition
-% -[ ] Identification of EMG triggers in Execution part(ALL channels)
+% -[?] Pick the peak of the Hilbert envelope line
+% -[x] Identification of EMG triggers in Execution part(ALL channels)
 % -[ ] Extraction of certain band through bandpass filter -> -[ ] Hilbert ->
 % -[ ] downsampling -> -[ ]Permutation test
 
@@ -33,7 +34,7 @@
 clc,clear
 
 tic
-targetSubjects = 19;
+targetSubjects = 12;
 
 AV = 1;   % 实验选项
 
@@ -354,11 +355,18 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
         
         for trial = 1:length(trigger)  % the segment number (i th)
             start_idx = trigger(trial);
-            start_idx_2 = trigger(trial)+3*actualFs;
+            start_idx_2 = trigger(trial)+3*actualFs;   % 待修改
             end_idx = min(start_idx + 5*actualFs, length(emgDiff));
             end_idx_2 = min(start_idx_2 + 5*actualFs, length(emgDiff));
             emgSegment = emgDiff(start_idx:end_idx); % 5s-long EMG data segment after the trigger signal
-            emgSegment_2 = emgDiff(start_idx_2:end_idx_2);
+
+            % 下面寻找从执行阶段开始的极小值点作为搜索起点
+            % emgSegment_2 = emgDiff(start_idx_2:end_idx_2);
+            % compare = emgSegment_2(2:end) - emgSegment_2(1:end-1);
+            % index = find(compare>0);
+            % start_idx_2 = index(1);
+            % emgSegment_2 = emgDiff(start_idx_2:end_idx_2);
+
 
             % emgSegment = gpuArray(emgSegment);
 
@@ -374,13 +382,10 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
             % disp(alarm_indices);
             
-            if ~isempty(alarm_indices)
+            if ~isempty(alarm_indices) 
 
                 robustIndex = start_idx + alarm_indices(1) - round((0.025*actualFs - 1)/2);
-
-
-                % robustIndex_2中的alarm_indices(2)并不是第二个EMG_trigger开始的时间。
-
+               
                 robustIndex_2 = start_idx_2 + alarm_indices_2(1) - round((0.025*actualFs - 1)/2);
 
                 robustIndex = min(robustIndex, length(emgDiff));
@@ -576,6 +581,13 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
          [hil,~] = envelop_hilbert_v2(merge-ranking(j)-(mod(ceil(j/15)-1,3))*30,round(window_size*actualFs), 1, round(0.05*actualFs), 0);
 
          hil = hil/max(hil)/1.5;
+
+         % 在这里寻找极小值点，然后如果发现极小值点离想象-执行交界点较远的话，就重新从该极小值点处做Hilbert变换，
+         % 并用得到的alarm值加上你去掉的单调递减的值作为真实的trigger发生点。
+
+         % 把这个点直接scatter上去就好了。
+         % 在前面如果发现做出来的trigger离交界处太近的话就直接删掉（做个标记啥的都行），就不用担心重复画点的问题了。
+
 
          to_be_hiled = ranking(j) + (mod(ceil(j/15)-1,3))*30 + hil;
                                      
@@ -1573,7 +1585,7 @@ function [hil_result,alarm] = envelop_hilbert_v2(y,Smooth_window,threshold_style
     alarm =zeros(1,length(env));
     if threshold_style
         % THR_SIG = 4*mean(env);
-        THR_SIG = 2*10^15*abs(mean(env));
+        THR_SIG = 2*10^14*abs(mean(env));
 
         % disp(THR_SIG);
         % THR_SIG = 0.04*median(env);
@@ -1734,7 +1746,7 @@ function [hil_result,alarm] = envelop_hilbert_v2_2(y,Smooth_window,threshold_sty
     alarm =zeros(1,length(env));
     if threshold_style
         % THR_SIG = 4*mean(env);
-        THR_SIG = 4*abs(mean(env));
+        THR_SIG = 4*10^12*abs(mean(env));
 
         % disp(THR_SIG);
         % THR_SIG = 0.04*median(env);
