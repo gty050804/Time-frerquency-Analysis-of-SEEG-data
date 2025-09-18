@@ -287,6 +287,9 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
     sessionNum = numel(Datacell);
     emg_trig_cell = cell(1,2);
     emg_trig_cell_2 = cell(1,2);
+    % if_qualify_2 = cell(1,2);      % 用来检验第二次EMG trigger检验是否符合规则
+    % if_qualify_2{1,1} = zeros(1,45);
+    % if_qualify_2{1,2} = zeros(1,45);   % 每一个cell中都封装了45个元素
     ranking = zeros(1,90);
     emg_cell = cell(2,45);
     % hil_cell = cell(2,45);
@@ -330,27 +333,17 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
         % 应用滤波器（零相位滤波）
         emgDiff = filtfilt(b, a, emgDiff);
 
-
         % emgDiff = process_emg_2(emgDiff,actualFs);
-
-
 
         % plot((1:length(emgDiff))/actualFs, emgDiff');
 
-
-
         emgDiff_smooth = smooth(abs(emgDiff), 0.025*actualFs);
-
 
         % plot((1:length(emgDiff_smooth))/actualFs, emgDiff_smooth');
         EMG_trigger = zeros(size(sessionData,1), 1);
         EMG_trigger_2 = zeros(size(sessionData,1), 1);
         trigger = find(trigger_idx); % search for the trigger position and label
         Trigger_cell_cell{sessionIdx,1} = trigger;
-
-
-
-
 
         
         for trial = 1:length(trigger)  % the segment number (i th)
@@ -361,7 +354,7 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
             emgSegment = emgDiff(start_idx:end_idx); % 5s-long EMG data segment after the trigger signal
 
             % 下面寻找从执行阶段开始的极小值点作为搜索起点
-            % emgSegment_2 = emgDiff(start_idx_2:end_idx_2);
+            emgSegment_2 = emgDiff(start_idx_2:end_idx_2);
             % compare = emgSegment_2(2:end) - emgSegment_2(1:end-1);
             % index = find(compare>0);
             % start_idx_2 = index(1);
@@ -385,22 +378,36 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
             if ~isempty(alarm_indices) 
 
                 robustIndex = start_idx + alarm_indices(1) - round((0.025*actualFs - 1)/2);
-               
-                robustIndex_2 = start_idx_2 + alarm_indices_2(1) - round((0.025*actualFs - 1)/2);
 
                 robustIndex = min(robustIndex, length(emgDiff));
 
                 robustIndex = max(robustIndex, 1); 
+                
+            else
+
+                robustIndex = start_idx;
+                
+            end
+
+            if ~isempty(alarm_indices_2)
+
+                robustIndex_2 = start_idx_2 + alarm_indices_2(1) - round((0.025*actualFs - 1)/2);
+
+                % if  alarm_indices_2(1) < 10    % 阈值有待更改?    (1*2cell,每个cell中封装45个元素，代表每个trial的第二个emgtrigger是否符合要求）
+                % 
+                %     disp("Fucking!");   % debug
+                %     % if_qualify_2{1,sessionIdx}(trial) = 1;
+                % 
+                % end
 
                 robustIndex_2 = min(robustIndex_2, length(emgDiff));
 
                 robustIndex_2 = max(robustIndex_2, 1); 
-                
-            else
-                robustIndex = start_idx;
 
-                robustIndex_2 = start_idx_2;
+            else
                 
+                robustIndex_2 = start_idx_2;
+
             end
             
             % make the comparison of envelop_hilbert trigger and EMG mean value
@@ -582,6 +589,11 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
          hil = hil/max(hil)/1.5;
 
+         % if if_qualify_2{1,ceill(j/45)}(mod(j-1,45)+1)
+         % 
+         % 
+         % end
+
          % 在这里寻找极小值点，然后如果发现极小值点离想象-执行交界点较远的话，就重新从该极小值点处做Hilbert变换，
          % 并用得到的alarm值加上你去掉的单调递减的值作为真实的trigger发生点。
 
@@ -641,11 +653,45 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
          end
          if (emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs<3
 
-             % disp("Fucking!");
-
              scatter((emg_trig_cell{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'red','filled');
 
-             scatter((emg_trig_cell_2{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'red','filled');
+             if abs((emg_trig_cell_2{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs-3) > 0.01
+
+                scatter((emg_trig_cell_2{1,ceil(j/45)}(mod(j-1,45)+1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'blue','filled');
+
+             else
+
+                 to_compare = to_be_hiled(2:end) - to_be_hiled(1:end-1);
+
+                 distance = 0;
+
+                 for jk = (4*actualFs+1):7*actualFs
+
+                     if to_compare < 0
+
+                         distance = distance+1;
+
+                     else
+
+                         break;
+
+                     end
+
+                 end
+
+                 % 待修改
+
+                 [~,alarming] = envelop_hilbert_v2(to_be_hiled(4*actualFs+distance:7*actualFs),round(window_size*actualFs), 1, round(0.05*actualFs), 0);
+
+                 alarming_indices = find(alarming==1);
+
+                 scatter((4*actualFs+distance+alarming_indices(1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'blue','filled');
+
+
+
+
+
+             end
 
          end
          % 
