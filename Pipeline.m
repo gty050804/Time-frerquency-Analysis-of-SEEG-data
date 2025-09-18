@@ -663,13 +663,25 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
                  to_compare = to_be_hiled(2:end) - to_be_hiled(1:end-1);
 
+                 % disp(to_compare);
+                 % 
+                 % disp(to_be_hiled);
+
                  distance = 0;
+
+                 flag = 0;
 
                  for jk = (4*actualFs+1):7*actualFs
 
-                     if to_compare < 0
+                     if (to_compare(jk) > 0 && flag == 0) || (to_compare(jk) < 0)
 
                          distance = distance+1;
+
+                         if to_compare(jk) < 0
+
+                             flag = 1;
+
+                         end
 
                      else
 
@@ -679,13 +691,15 @@ function [output,Trigger_cell_cell] = preprocess_stage2(config, subjId, Datacell
 
                  end
 
+                 % disp(distance);
+
                  % 待修改
 
                  [~,alarming] = envelop_hilbert_v2(to_be_hiled(4*actualFs+distance:7*actualFs),round(window_size*actualFs), 1, round(0.05*actualFs), 0);
 
                  alarming_indices = find(alarming==1);
 
-                 scatter((4*actualFs+distance+alarming_indices(1))/actualFs,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'blue','filled');
+                 scatter((4*actualFs+distance+alarming_indices(1))/actualFs-1,ranking(j)+(mod(ceil(j/15)-1,3))*30,10,'blue','filled');
 
 
 
