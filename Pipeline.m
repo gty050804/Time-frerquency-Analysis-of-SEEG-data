@@ -6,7 +6,7 @@
 % eliminition
 % -[?] Pick the peak of the Hilbert envelope line
 % -[x] Identification of EMG triggers in Execution part(ALL channels)
-% -[ ] Extraction of certain band through bandpass filter -> -[ ] Hilbert ->
+% -[x] Extraction of certain band through bandpass filter -> -[ ] Hilbert ->
 % -[ ] downsampling -> -[ ]Permutation test
 
 
@@ -34,9 +34,9 @@
 clc,clear
 
 tic
-targetSubjects = 12;
+targetSubjects = 9;
 
-AV = 1;   % 实验选项
+AV = 2;   % 实验选项
 
 % P7 肌电图噪声巨大
 % P9 部分通道效果较好
@@ -177,7 +177,8 @@ toc
 
 EleCTX_dir = fullfile(config.EleCTX_dir, sprintf('P%d', subjId));
 load(fullfile(EleCTX_dir, 'electrodes_Final_Norm.mat'), 'elec_Info_Final_wm');
-name = elec_Info_Final_wm.name;
+name = elec_Info_Final_wm.ana_label_name;
+% name = elec_Info_Final_wm.name;
 
 goodname = name(good_channels);
 
@@ -1645,7 +1646,7 @@ function [hil_result,alarm] = envelop_hilbert_v2(y,Smooth_window,threshold_style
     alarm =zeros(1,length(env));
     if threshold_style
         % THR_SIG = 4*mean(env);
-        THR_SIG = 2*10^14*abs(mean(env));
+        THR_SIG = 1*10^14*abs(mean(env));
 
         % disp(THR_SIG);
         % THR_SIG = 0.04*median(env);
