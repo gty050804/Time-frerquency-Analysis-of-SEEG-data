@@ -38,28 +38,43 @@ end
 
 for i = 1:sessionNum
     t_num = size(Gamma_cell{1,i},2);     % trigger数量
-    for chn = 1:length(use_channels)
+    ana_array = Gamma_cell{1,i};
+    offset = mod(i-1,2)*size(Gamma_cell{1,1},2);
+    
+    % 预分配临时存储数组
+    temp_sozai = zeros(length(use_channels), t_num, length(Bandrange), 3);
+    
+    parfor chn = 1:length(use_channels)
+        chn_temp_sozai = zeros(t_num, length(Bandrange), 3);
+        
         for trigger = 1:t_num
-            to_be_analyzed = Gamma_cell{1,i}(:,trigger,chn);     % 待分析信号
+            to_be_analyzed = ana_array(:,trigger,chn);     % 待分析信号
             fprintf("Analysing trigger %d/%d \n",trigger,t_num);
+            
+            % 为每个band预分配结果
+            band_results = zeros(length(Bandrange), 3);
+            
             for band = 1:length(Bandrange)
                 analyzed = bandpass(to_be_analyzed,[Bandrange{1,band}(1),Bandrange{1,band}(2)],actualFs);  % 带通滤波后的信号
-                
-                % 此处是否应该添加一个Hilbert包络线操作
 
                 m1 = mean(analyzed(1:1*actualFs));    % 休息段均值
                 m2 = mean(analyzed((1*actualFs+1):3*actualFs));   % 想象段均值
                 m3 = mean(analyzed((4*actualFs+1):6*actualFs));   % 执行段均值
-                sozai(chn,mod(i-1,2)*size(Gamma_cell{1,1},2)+trigger,band,1) = m1;
-                sozai(chn,mod(i-1,2)*size(Gamma_cell{1,1},2)+trigger,band,2) = m2;
-                sozai(chn,mod(i-1,2)*size(Gamma_cell{1,1},2)+trigger,band,3) = m3;
-
-
+                
+                band_results(band, :) = [m1, m2, m3];
             end
+            
+            chn_temp_sozai(trigger, :, :) = band_results;
         end
+        
+        % 将当前通道的结果存入临时数组
+        temp_sozai(chn, :, :, :) = chn_temp_sozai;
     end
+    
+    % 将临时数组复制到最终结果中
+    sozai(:, (offset+1):(offset+t_num), :, :) = temp_sozai;
 end
-
+ % 此处是否应该添加一个Hilbert包络线操作
 
 % 此时sozai构建已经完成，开始对dim2进行permutation test
 
