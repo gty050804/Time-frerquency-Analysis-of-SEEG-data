@@ -100,7 +100,7 @@ for chn = 1:size(sozai,1)
             r_pdf = zeros(1,number_of_repetitions);     
             for i = 1:number_of_repetitions
                 w = tmp(randperm(length(tmp))); 
-                r_pdf(i) = corr(w', labels', 'type','spearman'); 
+                r_pdf(i) = corr(w', label', 'type','spearman'); 
             end
             p_value = 2*normcdf(abs(r_obs), mean(r_pdf, 1), std(r_pdf, 0, 1));
             kekka(chn,band,m) = p_value;

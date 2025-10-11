@@ -259,7 +259,6 @@ function [Datacell, good_channels, actualFs] = preprocess_stage1(config, subjId,
         data(:,subInfo.UseChn) = Aligned_UseChn;
 
         % Align
-
     
         % select good channals
         goodChsCache{sessionIdx} = select_good_channels(data(:, subInfo.UseChn), actualFs, 10);
